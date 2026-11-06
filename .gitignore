@@ -1,3 +1,6 @@
+# IDE
+.vscode/
+
 # Godot 4.2+ specific ignores
 ~*.dll
 
@@ -21,5 +24,9 @@ mono_crash.*.json
 
 # Export outputs
 *.exe
+build/
+exports/
+.DS_Store
+Thumbs.db
 # Uncomment if your project does not version PCK files as runtime dependencies.
 # *.pck
