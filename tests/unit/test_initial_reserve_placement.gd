@@ -38,8 +38,14 @@ func _initialize() -> void:
 	)
 
 	var wrong_owner_result: GameActionResult = state.place_initial_reserve("allies_city")
-	_expect(not wrong_owner_result.succeeded(), "A player must not place on an opponent-owned city.")
-	_expect(state.find_city("allies_city").unit_count == 1, "Rejected placement must not change units.")
+	_expect(
+		not wrong_owner_result.succeeded(),
+		"A player must not place on an opponent-owned city."
+	)
+	_expect(
+		state.find_city("allies_city").unit_count == 1,
+		"Rejected placement must not change units."
+	)
 	_expect(
 		state.reserves_remaining_by_player_id[german_empire.id] == initial_reserves_per_player,
 		"Rejected placement must not consume a reserve."
@@ -76,7 +82,10 @@ func _initialize() -> void:
 		state.phase == GameState.Phase.ACTIVE_PLAY,
 		"Completing both reserve pools should finish initial placement."
 	)
-	_expect(state.active_player_id.is_empty(), "No player should remain active after setup placement.")
+	_expect(
+		state.active_player_id.is_empty(),
+		"No player should remain active after setup placement."
+	)
 	_expect(
 		state.reserves_remaining_by_player_id[allies.id] == 0,
 		"All Allied reserves should be placed."
@@ -86,7 +95,10 @@ func _initialize() -> void:
 		"All German reserves should be placed."
 	)
 	var placement_after_completion := state.place_initial_reserve("german_city_a")
-	_expect(not placement_after_completion.succeeded(), "No reserve may be placed after setup completes.")
+	_expect(
+		not placement_after_completion.succeeded(),
+		"No reserve may be placed after setup completes."
+	)
 	_expect(
 		state.find_city("german_city_a").unit_count == 1 + initial_reserves_per_player - 1,
 		"Rejected post-setup placement must not change the city."

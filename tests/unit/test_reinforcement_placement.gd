@@ -50,13 +50,22 @@ func _test_legal_and_rejected_placements() -> void:
 
 	var isolated_city := state.find_city("allies_isolated")
 	var isolated_result: GameActionResult = state.place_reinforcement("allies_isolated")
-	_expect(not isolated_result.succeeded(), "An owned city behind an enemy-held city is not reachable.")
-	_expect(isolated_city.unit_count == 1, "Rejected placement must not change the isolated garrison.")
+	_expect(
+		not isolated_result.succeeded(),
+		"An owned city behind an enemy-held city is not reachable."
+	)
+	_expect(
+		isolated_city.unit_count == 1,
+		"Rejected placement must not change the isolated garrison."
+	)
 	_expect(
 		state.reinforcements_remaining == 1,
 		"Rejected placement must not consume a reinforcement."
 	)
-	_expect(state.active_player_id == "allies", "Rejected placement must not advance the active player.")
+	_expect(
+		state.active_player_id == "allies",
+		"Rejected placement must not advance the active player."
+	)
 
 	var opponent_city_result: GameActionResult = state.place_reinforcement("german_block")
 	_expect(not opponent_city_result.succeeded(), "A player cannot reinforce an opponent-owned city.")

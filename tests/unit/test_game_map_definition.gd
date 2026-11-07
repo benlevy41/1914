@@ -17,10 +17,16 @@ func _initialize() -> void:
 		"strasbourg", "aachen", "saarbrucken",
 	]
 	var connected_city_ids: Dictionary = {"paris": true}
-	_expect(map_definition is RefCounted, "Map definition should be independent of the scene tree.")
+	_expect(
+		map_definition is RefCounted,
+		"Map definition should be independent of the scene tree."
+	)
 	_expect(map_definition.cities.size() == 32, "The complete map should define all 32 cities.")
 	_expect(map_definition.connections.size() > 0, "The map should define road connections.")
-	_expect(map_definition.find_city("paris").name == "Paris", "Map definition should find a city by ID.")
+	_expect(
+		map_definition.find_city("paris").name == "Paris",
+		"Map definition should find a city by ID."
+	)
 	_expect(
 		map_definition.find_city("paris").position == Vector2(0.08, 0.76),
 		"Map definition should retain a city's static map position."
@@ -56,18 +62,30 @@ func _initialize() -> void:
 	while found_new_city:
 		found_new_city = false
 		for connection: MapConnection in map_definition.connections:
-			if connected_city_ids.has(connection.from_city_id) and not connected_city_ids.has(connection.to_city_id):
+			if (
+				connected_city_ids.has(connection.from_city_id)
+				and not connected_city_ids.has(connection.to_city_id)
+			):
 				connected_city_ids[connection.to_city_id] = true
 				found_new_city = true
-			elif connected_city_ids.has(connection.to_city_id) and not connected_city_ids.has(connection.from_city_id):
+			elif (
+				connected_city_ids.has(connection.to_city_id)
+				and not connected_city_ids.has(connection.from_city_id)
+			):
 				connected_city_ids[connection.from_city_id] = true
 				found_new_city = true
 	_expect(
 		connected_city_ids.size() == map_definition.cities.size(),
 		"The provisional road network should connect all cities."
 	)
-	_expect(map_definition.find_city("paris").is_center_of_gravity, "Paris should be an Allied COG.")
-	_expect(map_definition.find_city("koblenz").is_center_of_gravity, "Koblenz should be a German COG.")
+	_expect(
+		map_definition.find_city("paris").is_center_of_gravity,
+		"Paris should be an Allied COG."
+	)
+	_expect(
+		map_definition.find_city("koblenz").is_center_of_gravity,
+		"Koblenz should be a German COG."
+	)
 
 	if _failures == 0:
 		print("Game map definition unit tests passed.")

@@ -31,7 +31,11 @@ func configure(
 	add_theme_color_override("font_pressed_color", Color.WHITE)
 
 
-func _create_style(background_color: Color, outline_color: Color, outline_width: int) -> StyleBoxFlat:
+func _create_style(
+	background_color: Color,
+	outline_color: Color,
+	outline_width: int
+) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background_color
 	style.border_color = outline_color

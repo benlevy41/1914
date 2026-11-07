@@ -16,22 +16,49 @@ func _initialize() -> void:
 		not premature_placement.succeeded(),
 		"Reserves cannot be placed before a new game has been initialized."
 	)
-	var result: GameStartResult = application.start_new_game("Allied commander", "German commander")
+	var result: GameStartResult = application.start_new_game(
+		"Allied commander",
+		"German commander"
+	)
 	var state: GameState = result.game_state
 
 	_expect(result.succeeded(), "A new game should succeed when both leaders are named.")
 	_expect(state.players.size() == 2, "A new game should initialize both players.")
-	_expect(map_definition.cities.size() == 32, "The map should define all 32 cities.")
+	_expect(
+		map_definition.cities.size() == 32,
+		"The map should define all 32 cities."
+	)
 	_expect(map_definition.connections.size() > 0, "The map should define road connections.")
-	_expect(state.cities.size() == map_definition.cities.size(), "Game state should have a state entry for every map city.")
-	_expect(state.players[0].name == "Allied commander", "The Allies should use the entered leader name.")
-	_expect(state.players[1].name == "German commander", "The German Empire should use the entered leader name.")
-	_expect(state.find_city("paris").owner_id == state.players[0].id, "Paris should belong to the Allies.")
-	_expect(state.find_city("koblenz").owner_id == state.players[1].id, "Koblenz should belong to the German Empire.")
+	_expect(
+		state.cities.size() == map_definition.cities.size(),
+		"Game state should have a state entry for every map city."
+	)
+	_expect(
+		state.players[0].name == "Allied commander",
+		"The Allies should use the entered leader name."
+	)
+	_expect(
+		state.players[1].name == "German commander",
+		"The German Empire should use the entered leader name."
+	)
+	_expect(
+		state.find_city("paris").owner_id == state.players[0].id,
+		"Paris should belong to the Allies."
+	)
+	_expect(
+		state.find_city("koblenz").owner_id == state.players[1].id,
+		"Koblenz should belong to the German Empire."
+	)
 	_expect(state.find_city("paris").unit_count == 1, "Paris should start with one sample unit.")
 	_expect(state.find_city("koblenz").unit_count == 1, "Koblenz should start with one sample unit.")
-	_expect(map_definition.find_city("paris").is_center_of_gravity, "Paris should be marked as a COG in the map.")
-	_expect(map_definition.find_city("koblenz").is_center_of_gravity, "Koblenz should be marked as a COG in the map.")
+	_expect(
+		map_definition.find_city("paris").is_center_of_gravity,
+		"Paris should be marked as a COG in the map."
+	)
+	_expect(
+		map_definition.find_city("koblenz").is_center_of_gravity,
+		"Koblenz should be marked as a COG in the map."
+	)
 	var allies_count := 0
 	var german_count := 0
 	for city: GameCity in state.cities:

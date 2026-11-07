@@ -34,7 +34,10 @@ func _initialize() -> void:
 	}
 
 	_expect(first_state.cities.size() == 32, "Initial game state should include all 32 cities.")
-	_expect(first_state.find_city("paris").owner_id == allies.id, "Paris should always belong to the Allies.")
+	_expect(
+		first_state.find_city("paris").owner_id == allies.id,
+		"Paris should always belong to the Allies."
+	)
 	_expect(
 		first_state.find_city("koblenz").owner_id == german_empire.id,
 		"Koblenz should always belong to the German Empire."

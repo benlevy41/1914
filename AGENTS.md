@@ -79,6 +79,7 @@ The following require explicit project-owner approval:
 - New external dependencies or frameworks.
 - Significant changes to project structure or development tooling.
 - Changes that introduce new architectural patterns or abstractions with broad implications.
+- Changes to the linter configuration or CI pipeline.
 
 Agents MAY make ordinary implementation decisions within the boundaries of approved requirements and documented architecture.
 

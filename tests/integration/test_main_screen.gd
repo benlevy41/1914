@@ -43,7 +43,10 @@ func _run_test() -> void:
 	_expect(not game_panel.visible, "The board should stay hidden until both names are entered.")
 	continue_button.emit_signal("pressed")
 	await get_tree().process_frame
-	_expect(setup_error.text == "Please enter a name to continue.", "Empty names should be rejected.")
+	_expect(
+		setup_error.text == "Please enter a name to continue.",
+		"Empty names should be rejected."
+	)
 
 	name_input.text = "  Ada  "
 	continue_button.emit_signal("pressed")
@@ -51,7 +54,10 @@ func _run_test() -> void:
 		setup_prompt.text == "Who will lead the German Empire?",
 		"The setup should prompt for the German Empire leader second."
 	)
-	_expect(continue_button.text == "Start game", "The final name prompt should offer to start the game.")
+	_expect(
+		continue_button.text == "Start game",
+		"The final name prompt should offer to start the game."
+	)
 	name_input.text = " Otto "
 	continue_button.emit_signal("pressed")
 	await process_frame
@@ -119,7 +125,10 @@ func _run_test() -> void:
 		turn_status.text == "Choose a city owned by the player placing a reserve.",
 		"The active player should not be able to place on an opponent's city."
 	)
-	_expect(paris_marker.text == "Paris (COG)\nAda - 1 unit", "Rejected placement must not change the garrison.")
+	_expect(
+		paris_marker.text == "Paris (COG)\nAda - 1 unit",
+		"Rejected placement must not change the garrison."
+	)
 	_expect(
 		turn_status.text != "Ada's turn - 5 reserve units remaining.",
 		"A rejected placement must not advance the turn."
@@ -127,7 +136,10 @@ func _run_test() -> void:
 
 	koblenz_marker.emit_signal("pressed")
 	phase_action_button.emit_signal("pressed")
-	_expect(koblenz_marker.text == "Koblenz (COG)\nOtto - 2 units", "A reserve should increase the garrison.")
+	_expect(
+		koblenz_marker.text == "Koblenz (COG)\nOtto - 2 units",
+		"A reserve should increase the garrison."
+	)
 	_expect(
 		turn_status.text == "Ada's turn - 5 reserve units remaining.",
 		"The Allies should place after the German Empire."
@@ -148,7 +160,10 @@ func _run_test() -> void:
 		turn_status.text == "Otto's reinforcement phase - 3 units remaining.",
 		"After setup, Germany should begin the reinforcement-only turn loop."
 	)
-	_expect(not phase_action_button.disabled, "The active player should be able to place reinforcements.")
+	_expect(
+		not phase_action_button.disabled,
+		"The active player should be able to place reinforcements."
+	)
 	_expect(
 		koblenz_marker.text == "Koblenz (COG)\nOtto - 6 units",
 		"All five German reserves should have been placed."
@@ -163,7 +178,10 @@ func _run_test() -> void:
 	)
 
 	paris_marker.emit_signal("pressed")
-	_expect(board.get_selected_city_id() == "paris", "Selecting Paris should update the board selection.")
+	_expect(
+		board.get_selected_city_id() == "paris",
+		"Selecting Paris should update the board selection."
+	)
 	_expect(paris_marker.button_pressed, "The selected marker should show visual feedback.")
 	_expect(not koblenz_marker.button_pressed, "Only the selected marker should remain highlighted.")
 	_expect(

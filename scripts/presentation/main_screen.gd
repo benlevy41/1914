@@ -2,6 +2,13 @@ extends Control
 
 const GameApplicationScript = preload("res://scripts/application/game_application.gd")
 
+var _game_application: GameApplication
+var _map_definition: GameMapDefinition
+var _game_state: GameState
+var _allies_name: String = ""
+var _is_entering_german_name: bool = false
+var _selected_city_id: String = ""
+
 @onready var _player_list: VBoxContainer = $MarginContainer/Content/MainLayout/Sidebar/PlayerList
 @onready var _selected_city_label: Label = $MarginContainer/Content/MainLayout/Sidebar/SelectedCity
 @onready var _board: BoardView = $MarginContainer/Content/MainLayout/Board
@@ -14,14 +21,6 @@ const GameApplicationScript = preload("res://scripts/application/game_applicatio
 @onready var _game_status: Label = $MarginContainer/Content/GameStatus
 @onready var _turn_status: Label = $MarginContainer/Content/MainLayout/Sidebar/TurnStatus
 @onready var _phase_action_button: Button = $MarginContainer/Content/MainLayout/Sidebar/PhaseAction
-
-var _game_application: GameApplication
-var _map_definition: GameMapDefinition
-var _game_state: GameState
-var _allies_name: String = ""
-var _is_entering_german_name: bool = false
-var _selected_city_id: String = ""
-
 
 func _ready() -> void:
 	var random_generator := RandomNumberGenerator.new()
