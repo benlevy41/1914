@@ -21,7 +21,7 @@ jobs:
             - name: Install Godot
               uses: chickensoft-games/setup-godot@v2
               with:
-                  godot-version: 4.7.2
+                  version: 4.7.2
 
             - name: Import project resources
               run: godot --headless --editor --path . --quit
