@@ -1,0 +1,100 @@
+[gd_scene format=3 uid="uid://bwvs22kaly21w"]
+
+[ext_resource type="Script" uid="uid://coqmlmn37uu4f" path="res://scripts/presentation/main_screen.gd" id="1_main_screen"]
+[ext_resource type="PackedScene" path="res://scenes/board_view.tscn" id="2_board_view"]
+
+[node name="MainScreen" type="Control" unique_id=1457093871]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main_screen")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1398428554]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 32.0
+offset_top = 32.0
+offset_right = -32.0
+offset_bottom = -32.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Content" type="VBoxContainer" parent="MarginContainer" unique_id=466498599]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="MarginContainer/Content" unique_id=1869748403]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "1914: The Western Front"
+
+[node name="GameStatus" type="Label" parent="MarginContainer/Content" unique_id=2022516689]
+layout_mode = 2
+text = "New game setup"
+autowrap_mode = 2
+
+[node name="SetupPanel" type="VBoxContainer" parent="MarginContainer/Content" unique_id=1148140168]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Prompt" type="Label" parent="MarginContainer/Content/SetupPanel" unique_id=462863325]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Who will lead the Allied forces?"
+
+[node name="LeaderName" type="LineEdit" parent="MarginContainer/Content/SetupPanel" unique_id=1652030381]
+layout_mode = 2
+placeholder_text = "Allied leader name"
+max_length = 40
+
+[node name="Error" type="Label" parent="MarginContainer/Content/SetupPanel" unique_id=897224593]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.4, 0.35, 1)
+
+[node name="Continue" type="Button" parent="MarginContainer/Content/SetupPanel" unique_id=451596486]
+layout_mode = 2
+text = "Continue"
+
+[node name="MainLayout" type="HBoxContainer" parent="MarginContainer/Content" unique_id=402183522]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="Sidebar" type="VBoxContainer" parent="MarginContainer/Content/MainLayout" unique_id=1993486443]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayersHeading" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1993280928]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Players"
+
+[node name="PlayerList" type="VBoxContainer" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1799922826]
+layout_mode = 2
+
+[node name="SelectedHeading" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1542871279]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Selected city"
+
+[node name="SelectedCity" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=814169471]
+layout_mode = 2
+text = "Select a city on the board."
+autowrap_mode = 2
+
+[node name="TurnStatus" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1619945888]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="PhaseAction" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=194397870]
+layout_mode = 2
+text = "Place reserve unit"
+
+[node name="Board" parent="MarginContainer/Content/MainLayout" unique_id=261282090 instance=ExtResource("2_board_view")]
