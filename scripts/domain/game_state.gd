@@ -5,6 +5,8 @@ enum Phase {
 	INITIAL_RESERVE_PLACEMENT,
 	ACTIVE_PLAY,
 	REINFORCEMENT_PLACEMENT,
+	ATTACK,
+	REORGANIZATION,
 }
 
 const CITIES_PER_REINFORCEMENT := 5
@@ -114,17 +116,138 @@ func place_reinforcement(city_id: String) -> GameActionResult:
 	city.add_units(1)
 	reinforcements_remaining -= 1
 	if reinforcements_remaining == 0:
-		_start_reinforcement_turn(_get_next_player_id())
+		phase = Phase.ATTACK
 	return GameActionResult.new()
 
 
-func skip_reinforcement_turn() -> GameActionResult:
+func begin_attack_phase() -> GameActionResult:
 	if phase != Phase.REINFORCEMENT_PLACEMENT:
-		return GameActionResult.new("Reinforcement placement is not in progress.")
+		return GameActionResult.new("The attack phase cannot start right now.")
 	if reinforcements_remaining > 0:
-		return GameActionResult.new("All reinforcements must be placed before passing the turn.")
+		return GameActionResult.new("All reinforcements must be placed before attacking.")
 
-	_start_reinforcement_turn(_get_next_player_id())
+	phase = Phase.ATTACK
+	return GameActionResult.new()
+
+
+func validate_attack_source(attacking_city_id: String) -> GameActionResult:
+	if phase != Phase.ATTACK:
+		return GameActionResult.new("Attacking cities can only be selected during the attack phase.")
+	var attacking_city := find_city(attacking_city_id)
+	if attacking_city == null:
+		return GameActionResult.new("The attacking city is not on the map.")
+	if attacking_city.owner_id != active_player_id:
+		return GameActionResult.new("Choose a city owned by the active player to attack from.")
+	if attacking_city.unit_count <= 0:
+		return GameActionResult.new("Choose an active player's city with at least one unit.")
+	return GameActionResult.new()
+
+
+func validate_attack(
+	attacking_city_id: String,
+	defending_city_id: String,
+	attacker_commitment: int
+) -> GameActionResult:
+	var source_result := validate_attack_source(attacking_city_id)
+	if not source_result.succeeded():
+		return source_result
+	var attacking_city := find_city(attacking_city_id)
+	var defending_city := find_city(defending_city_id)
+	if defending_city == null:
+		return GameActionResult.new("The defending city is not on the map.")
+	if attacking_city_id == defending_city_id:
+		return GameActionResult.new("A city cannot attack itself.")
+	if attacker_commitment < 1 or attacker_commitment > attacking_city.unit_count:
+		return GameActionResult.new("Choose at least one unit, up to the attacking garrison.")
+	if not _are_cities_connected(attacking_city_id, defending_city_id):
+		return GameActionResult.new("Attacks must target a city directly connected by a road.")
+	if defending_city.owner_id == active_player_id:
+		return GameActionResult.new("The target city is already controlled by the active player.")
+	if defending_city.owner_id.is_empty() or defending_city.unit_count == 0:
+		return GameActionResult.new("The target city is unoccupied and can be occupied.")
+	return GameActionResult.new()
+
+
+func resolve_attack_round(
+	attacking_city_id: String,
+	defending_city_id: String,
+	attacker_commitment: int,
+	defender_commitment: int,
+	combat_service: CombatService
+) -> CombatRoundResult:
+	var validation_result := validate_attack(
+		attacking_city_id,
+		defending_city_id,
+		attacker_commitment
+	)
+	if not validation_result.succeeded():
+		return CombatRoundResult.new([], [], 0, 0, validation_result.error_message)
+
+	var attacking_city := find_city(attacking_city_id)
+	var defending_city := find_city(defending_city_id)
+	if defender_commitment < 1 or defender_commitment > defending_city.unit_count:
+		return CombatRoundResult.new(
+			[],
+			[],
+			0,
+			0,
+			"Choose at least one defending unit, up to the defending garrison."
+		)
+	if combat_service == null:
+		return CombatRoundResult.new(
+			[],
+			[],
+			0,
+			0,
+			"A combat service is required to resolve the round."
+		)
+
+	var result := combat_service.resolve_round(attacker_commitment, defender_commitment)
+	if result.attacker_losses > 0:
+		attacking_city.remove_units(result.attacker_losses)
+	if result.defender_losses > 0:
+		defending_city.remove_units(result.defender_losses)
+	if attacking_city.unit_count == 0:
+		attacking_city.owner_id = ""
+	if defending_city.unit_count == 0:
+		defending_city.owner_id = ""
+	return result
+
+
+func occupy_city(
+	attacking_city_id: String,
+	target_city_id: String,
+	unit_count: int
+) -> GameActionResult:
+	if phase != Phase.ATTACK:
+		return GameActionResult.new("Cities can only be occupied during the attack phase.")
+	var attacking_city := find_city(attacking_city_id)
+	if attacking_city == null:
+		return GameActionResult.new("The attacking city is not on the map.")
+	var target_city := find_city(target_city_id)
+	if target_city == null:
+		return GameActionResult.new("The target city is not on the map.")
+	if attacking_city_id == target_city_id:
+		return GameActionResult.new("A city cannot occupy itself.")
+	if attacking_city.owner_id != active_player_id:
+		return GameActionResult.new("Choose a city owned by the active player to occupy from.")
+	if target_city.owner_id != "" or target_city.unit_count != 0:
+		return GameActionResult.new("Only an unoccupied city can be occupied.")
+	if not _are_cities_connected(attacking_city_id, target_city_id):
+		return GameActionResult.new("A city can only be occupied along a direct road.")
+	if unit_count < 1 or unit_count >= attacking_city.unit_count:
+		return GameActionResult.new("Move at least one unit and leave at least one in the source city.")
+
+	attacking_city.remove_units(unit_count)
+	target_city.add_units(unit_count)
+	target_city.owner_id = active_player_id
+	return GameActionResult.new()
+
+
+func end_attack_phase() -> GameActionResult:
+	if phase != Phase.ATTACK:
+		return GameActionResult.new("The attack phase is not in progress.")
+	phase = Phase.REORGANIZATION
 	return GameActionResult.new()
 
 
@@ -214,11 +337,18 @@ func _get_reinforcement_reachable_city_ids(player_id: String) -> Dictionary:
 	return reachable_city_ids
 
 
-func _get_next_player_id() -> String:
-	var active_player_index := -1
-	for index: int in players.size():
-		if players[index].id == active_player_id:
-			active_player_index = index
-			break
-	assert(active_player_index >= 0)
-	return players[(active_player_index + 1) % players.size()].id
+func _are_cities_connected(first_city_id: String, second_city_id: String) -> bool:
+	if _map_definition == null:
+		return false
+	for connection: MapConnection in _map_definition.connections:
+		if (
+			connection.from_city_id == first_city_id
+			and connection.to_city_id == second_city_id
+		):
+			return true
+		if (
+			connection.from_city_id == second_city_id
+			and connection.to_city_id == first_city_id
+		):
+			return true
+	return false

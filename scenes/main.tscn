@@ -38,7 +38,29 @@ layout_mode = 2
 text = "New game setup"
 autowrap_mode = 2
 
+[node name="MenuPanel" type="VBoxContainer" parent="MarginContainer/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MenuHeading" type="Label" parent="MarginContainer/Content/MenuPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Start a game"
+
+[node name="CustomGame" type="Button" parent="MarginContainer/Content/MenuPanel"]
+layout_mode = 2
+text = "Custom game"
+
+[node name="QuickStart" type="Button" parent="MarginContainer/Content/MenuPanel"]
+layout_mode = 2
+text = "Quick start (Joffre and Moltke)"
+
+[node name="Error" type="Label" parent="MarginContainer/Content/MenuPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.4, 0.35, 1)
+
 [node name="SetupPanel" type="VBoxContainer" parent="MarginContainer/Content" unique_id=1148140168]
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 12
 
@@ -96,5 +118,53 @@ autowrap_mode = 2
 [node name="PhaseAction" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=194397870]
 layout_mode = 2
 text = "Place reserve unit"
+
+[node name="AttackPanel" type="VBoxContainer" parent="MarginContainer/Content/MainLayout/Sidebar"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AttackSelection" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+layout_mode = 2
+text = "Select an attacking city, then a target."
+autowrap_mode = 2
+
+[node name="AttackerCommitment" type="SpinBox" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+layout_mode = 2
+min_value = 1.0
+prefix = "Attack units: "
+value = 1.0
+
+[node name="DefenderPrompt" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+visible = false
+layout_mode = 2
+text = "Defender: choose committed units."
+autowrap_mode = 2
+
+[node name="DefenderCommitment" type="SpinBox" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+visible = false
+layout_mode = 2
+min_value = 1.0
+prefix = "Defense units: "
+value = 1.0
+
+[node name="OccupationCommitment" type="SpinBox" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+visible = false
+layout_mode = 2
+min_value = 1.0
+prefix = "Units to move: "
+value = 1.0
+
+[node name="AttackResult" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="AttackAction" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+layout_mode = 2
+text = "Attack"
+
+[node name="EndAttack" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar/AttackPanel"]
+layout_mode = 2
+text = "End attack phase"
 
 [node name="Board" parent="MarginContainer/Content/MainLayout" unique_id=261282090 instance=ExtResource("2_board_view")]

@@ -19,3 +19,9 @@ func _init(
 func add_units(amount: int) -> void:
 	assert(amount > 0)
 	unit_count += amount
+
+
+func remove_units(amount: int) -> void:
+	assert(amount > 0)
+	assert(amount <= unit_count)
+	unit_count -= amount

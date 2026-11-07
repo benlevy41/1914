@@ -8,10 +8,18 @@ var _game_state: GameState
 var _allies_name: String = ""
 var _is_entering_german_name: bool = false
 var _selected_city_id: String = ""
+var _attack_source_city_id: String = ""
+var _attack_target_city_id: String = ""
+var _awaiting_defender_commitment: bool = false
+var _displayed_phase: int = -1
 
 @onready var _player_list: VBoxContainer = $MarginContainer/Content/MainLayout/Sidebar/PlayerList
 @onready var _selected_city_label: Label = $MarginContainer/Content/MainLayout/Sidebar/SelectedCity
 @onready var _board: BoardView = $MarginContainer/Content/MainLayout/Board
+@onready var _menu_panel: VBoxContainer = $MarginContainer/Content/MenuPanel
+@onready var _custom_game_button: Button = $MarginContainer/Content/MenuPanel/CustomGame
+@onready var _quick_start_button: Button = $MarginContainer/Content/MenuPanel/QuickStart
+@onready var _menu_error: Label = $MarginContainer/Content/MenuPanel/Error
 @onready var _setup_panel: VBoxContainer = $MarginContainer/Content/SetupPanel
 @onready var _setup_prompt: Label = $MarginContainer/Content/SetupPanel/Prompt
 @onready var _leader_name_input: LineEdit = $MarginContainer/Content/SetupPanel/LeaderName
@@ -21,6 +29,33 @@ var _selected_city_id: String = ""
 @onready var _game_status: Label = $MarginContainer/Content/GameStatus
 @onready var _turn_status: Label = $MarginContainer/Content/MainLayout/Sidebar/TurnStatus
 @onready var _phase_action_button: Button = $MarginContainer/Content/MainLayout/Sidebar/PhaseAction
+@onready var _attack_panel: VBoxContainer = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel
+)
+@onready var _attack_selection: Label = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/AttackSelection
+)
+@onready var _attacker_commitment: SpinBox = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/AttackerCommitment
+)
+@onready var _defender_prompt: Label = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/DefenderPrompt
+)
+@onready var _defender_commitment: SpinBox = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/DefenderCommitment
+)
+@onready var _occupation_commitment: SpinBox = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/OccupationCommitment
+)
+@onready var _attack_result: Label = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/AttackResult
+)
+@onready var _attack_action_button: Button = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/AttackAction
+)
+@onready var _end_attack_button: Button = (
+	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/EndAttack
+)
 
 func _ready() -> void:
 	var random_generator := RandomNumberGenerator.new()
@@ -28,13 +63,33 @@ func _ready() -> void:
 	_game_application = GameApplicationScript.new(random_generator)
 	_map_definition = _game_application.get_map_definition()
 	_setup_prompt.text = "Who will lead the Allied forces?"
+	_custom_game_button.pressed.connect(_on_custom_game_pressed)
+	_quick_start_button.pressed.connect(_on_quick_start_pressed)
 	_continue_button.pressed.connect(_on_continue_pressed)
 	_leader_name_input.text_submitted.connect(_on_leader_name_submitted)
 	_phase_action_button.pressed.connect(_on_phase_action_pressed)
-	_leader_name_input.grab_focus()
+	_attack_action_button.pressed.connect(_on_attack_action_pressed)
+	_end_attack_button.pressed.connect(_on_end_attack_pressed)
+	_setup_panel.hide()
 	_game_panel.hide()
+	_attack_panel.hide()
 	_setup_error.text = ""
+	_menu_error.text = ""
 	_phase_action_button.disabled = true
+
+
+func _on_custom_game_pressed() -> void:
+	_menu_panel.hide()
+	_setup_panel.show()
+	_leader_name_input.grab_focus()
+
+
+func _on_quick_start_pressed() -> void:
+	var result: GameStartResult = _game_application.start_quick_game()
+	if not result.succeeded():
+		_menu_error.text = result.error_message
+		return
+	_show_game(result.game_state)
 
 
 func _on_continue_pressed() -> void:
@@ -68,7 +123,11 @@ func _submit_current_leader_name() -> void:
 		_setup_error.text = result.error_message
 		return
 
-	_game_state = result.game_state
+	_show_game(result.game_state)
+
+
+func _show_game(game_state: GameState) -> void:
+	_game_state = game_state
 	_display_players()
 	_board.city_selected.connect(_on_city_selected)
 	_board.configure(_map_definition, _game_state)
@@ -77,6 +136,7 @@ func _submit_current_leader_name() -> void:
 		+ "Now place the initial reserve units."
 	)
 	_update_phase_status()
+	_menu_panel.hide()
 	_setup_panel.hide()
 	_game_panel.show()
 
@@ -96,7 +156,9 @@ func _on_city_selected(city_id: String) -> void:
 		return
 
 	_selected_city_id = city_id
-	_update_phase_status()
+	var attack_selection_result := GameActionResult.new()
+	if _game_state.phase == GameState.Phase.ATTACK and not _awaiting_defender_commitment:
+		attack_selection_result = _update_attack_selection(city_id)
 	var owner_name := "Unoccupied"
 	if not city_state.owner_id.is_empty():
 		var owner := _game_state.find_player(city_state.owner_id)
@@ -113,6 +175,8 @@ func _on_city_selected(city_id: String) -> void:
 		unit_label,
 	]
 	_update_phase_status()
+	if not attack_selection_result.succeeded():
+		_turn_status.text = attack_selection_result.error_message
 
 
 func _on_phase_action_pressed() -> void:
@@ -124,7 +188,7 @@ func _on_phase_action_pressed() -> void:
 		result = _game_application.place_initial_reserve(_selected_city_id)
 	elif _game_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT:
 		if _game_state.reinforcements_remaining == 0:
-			result = _game_application.skip_reinforcement_turn()
+			result = _game_application.begin_attack_phase()
 		else:
 			if _selected_city_id.is_empty():
 				_turn_status.text = "Select a city to reinforce."
@@ -144,11 +208,152 @@ func _on_phase_action_pressed() -> void:
 		_update_phase_status()
 
 
+func _update_attack_selection(city_id: String) -> GameActionResult:
+	if _attack_source_city_id.is_empty() or not _attack_target_city_id.is_empty():
+		_attack_source_city_id = ""
+		_attack_target_city_id = ""
+		var validation_result := _game_application.validate_attack_source(city_id)
+		if not validation_result.succeeded():
+			_update_attack_selection_label()
+			return validation_result
+		_attack_source_city_id = city_id
+	elif city_id != _attack_source_city_id:
+		_attack_target_city_id = city_id
+	_update_attack_selection_label()
+	return GameActionResult.new()
+
+
+func _update_attack_selection_label() -> void:
+	var source_name := _city_display_name(_attack_source_city_id)
+	var target_name := _city_display_name(_attack_target_city_id)
+	if source_name.is_empty():
+		_attack_selection.text = "Select an attacking city, then a target."
+	elif target_name.is_empty():
+		_attack_selection.text = "Attacking from %s. Select a target." % source_name
+	else:
+		_attack_selection.text = "%s attacks %s." % [source_name, target_name]
+
+
+func _city_display_name(city_id: String) -> String:
+	if city_id.is_empty():
+		return ""
+	var city_definition := _map_definition.find_city(city_id)
+	if city_definition == null:
+		push_error("Cannot display unknown map city '%s'." % city_id)
+		return ""
+	return city_definition.name
+
+
+func _on_attack_action_pressed() -> void:
+	if _awaiting_defender_commitment:
+		_resolve_attack_round()
+		return
+
+	var attacking_city := _game_state.find_city(_attack_source_city_id)
+	var target_city := _game_state.find_city(_attack_target_city_id)
+	if attacking_city == null or target_city == null:
+		_turn_status.text = "Select an attacking city and a target first."
+		return
+	if target_city.owner_id.is_empty() or target_city.unit_count == 0:
+		_occupy_selected_city()
+		return
+
+	var attacker_commitment := int(_attacker_commitment.value)
+	var validation_result := _game_application.validate_attack(
+		_attack_source_city_id,
+		_attack_target_city_id,
+		attacker_commitment
+	)
+	if not validation_result.succeeded():
+		_turn_status.text = validation_result.error_message
+		return
+
+	_awaiting_defender_commitment = true
+	var defending_player := _game_state.find_player(target_city.owner_id)
+	if defending_player == null:
+		push_error("Defending city has an unknown owner.")
+		_awaiting_defender_commitment = false
+		return
+	_defender_prompt.text = "%s: choose defending units." % defending_player.name
+	_defender_commitment.min_value = 1
+	_defender_commitment.max_value = target_city.unit_count
+	_defender_commitment.value = 1
+	_update_phase_status()
+
+
+func _resolve_attack_round() -> void:
+	var result: CombatRoundResult = _game_application.resolve_attack_round(
+		_attack_source_city_id,
+		_attack_target_city_id,
+		int(_attacker_commitment.value),
+		int(_defender_commitment.value)
+	)
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		_awaiting_defender_commitment = false
+		_update_phase_status()
+		return
+
+	_awaiting_defender_commitment = false
+	_attack_result.text = (
+		"Attacker rolls %s; defender rolls %s. Losses: attacker %d, defender %d."
+		% [
+			str(result.attacker_rolls),
+			str(result.defender_rolls),
+			result.attacker_losses,
+			result.defender_losses,
+		]
+	)
+	_board.refresh_state(_game_state)
+	_update_phase_status()
+
+
+func _occupy_selected_city() -> void:
+	if _attack_source_city_id.is_empty() or _attack_target_city_id.is_empty():
+		_turn_status.text = "Select an attacking city and an unoccupied target."
+		return
+	var result := _game_application.occupy_city(
+		_attack_source_city_id,
+		_attack_target_city_id,
+		int(_occupation_commitment.value)
+	)
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		return
+
+	_attack_result.text = "%s occupied %s." % [
+		_city_display_name(_attack_source_city_id),
+		_city_display_name(_attack_target_city_id),
+	]
+	_attack_target_city_id = ""
+	_board.refresh_state(_game_state)
+	_update_attack_selection_label()
+	_update_phase_status()
+
+
+func _on_end_attack_pressed() -> void:
+	var result := _game_application.end_attack_phase()
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		_update_phase_status()
+		return
+	_update_phase_status()
+
+
 func _update_phase_status() -> void:
+	if _displayed_phase != int(_game_state.phase):
+		if _game_state.phase == GameState.Phase.ATTACK:
+			_attack_source_city_id = ""
+			_attack_target_city_id = ""
+			_awaiting_defender_commitment = false
+			_attack_result.text = ""
+		_displayed_phase = int(_game_state.phase)
+
 	if _game_state.phase == GameState.Phase.ACTIVE_PLAY:
 		_turn_status.text = "Initial reserve placement complete."
 		_phase_action_button.text = "Placement complete"
 		_phase_action_button.disabled = true
+		_attack_panel.hide()
 		return
 
 	var active_player := _game_state.find_player(_game_state.active_player_id)
@@ -157,6 +362,8 @@ func _update_phase_status() -> void:
 		return
 
 	if _game_state.phase == GameState.Phase.INITIAL_RESERVE_PLACEMENT:
+		_attack_panel.hide()
+		_phase_action_button.show()
 		var reserves_remaining: int = _game_state.reserves_remaining_by_player_id[active_player.id]
 		_turn_status.text = "%s's turn - %d reserve units remaining." % [
 			active_player.name,
@@ -166,22 +373,98 @@ func _update_phase_status() -> void:
 		_phase_action_button.disabled = _selected_city_id.is_empty()
 		return
 
-	_game_status.text = (
-		"Reinforcement-only turns are active. Attack and reorganization are not implemented yet."
-	)
-	if _game_state.reinforcements_remaining == 0:
-		_turn_status.text = "%s has no reinforcements to place. Pass to the next player." % [
+	if _game_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT:
+		_attack_panel.hide()
+		_phase_action_button.show()
+		_game_status.text = (
+			"Reinforcement phase: place units in cities connected to your center of gravity."
+		)
+		if _game_state.reinforcements_remaining == 0:
+			_turn_status.text = (
+				"%s has no reinforcements. Begin the attack phase when ready."
+				% active_player.name
+			)
+			_phase_action_button.text = "Begin attack phase"
+			_phase_action_button.disabled = false
+			return
+
+		var reinforcement_unit_label := (
+			"unit" if _game_state.reinforcements_remaining == 1 else "units"
+		)
+		_turn_status.text = "%s's reinforcement phase - %d %s remaining." % [
 			active_player.name,
+			_game_state.reinforcements_remaining,
+			reinforcement_unit_label,
 		]
-		_phase_action_button.text = "Skip reinforcement turn"
-		_phase_action_button.disabled = false
+		_phase_action_button.text = "Place reinforcement"
+		_phase_action_button.disabled = _selected_city_id.is_empty()
 		return
 
-	var unit_label := "unit" if _game_state.reinforcements_remaining == 1 else "units"
-	_turn_status.text = "%s's reinforcement phase - %d %s remaining." % [
-		active_player.name,
-		_game_state.reinforcements_remaining,
-		unit_label,
-	]
-	_phase_action_button.text = "Place reinforcement"
-	_phase_action_button.disabled = _selected_city_id.is_empty()
+	_phase_action_button.hide()
+	if _game_state.phase == GameState.Phase.ATTACK:
+		_attack_panel.show()
+		_game_status.text = (
+			"Attack phase: select a source city, then an adjacent target. "
+			+ "The defender chooses a commitment for each round."
+		)
+		if _awaiting_defender_commitment:
+			var defending_city := _game_state.find_city(_attack_target_city_id)
+			var defending_player := (
+				_game_state.find_player(defending_city.owner_id)
+				if defending_city != null
+				else null
+			)
+			if defending_player != null:
+				_turn_status.text = "Pass the controls to %s." % defending_player.name
+		else:
+			_turn_status.text = "%s's attack phase." % active_player.name
+		_update_attack_controls()
+		return
+
+	_attack_panel.hide()
+	_turn_status.text = "Attack phase complete. Reorganization is not implemented yet."
+	_game_status.text = (
+		"Reorganization is not implemented yet; the next player's turn has not started."
+	)
+
+
+func _update_attack_controls() -> void:
+	_update_attack_selection_label()
+	var attacking_city := _game_state.find_city(_attack_source_city_id)
+	var target_city := _game_state.find_city(_attack_target_city_id)
+	_attack_action_button.disabled = true
+	_attack_action_button.text = "Attack"
+	_attacker_commitment.hide()
+	_defender_prompt.hide()
+	_defender_commitment.hide()
+	_occupation_commitment.hide()
+	_end_attack_button.disabled = _awaiting_defender_commitment
+
+	if _awaiting_defender_commitment:
+		_defender_prompt.show()
+		_defender_commitment.show()
+		_attack_action_button.text = "Resolve combat round"
+		_attack_action_button.disabled = false
+		return
+	if attacking_city == null or target_city == null:
+		return
+	if target_city.owner_id.is_empty() or target_city.unit_count == 0:
+		_occupation_commitment.show()
+		_occupation_commitment.min_value = 1
+		_occupation_commitment.max_value = maxi(1, attacking_city.unit_count - 1)
+		_occupation_commitment.value = 1
+		_attack_action_button.text = "Occupy target"
+		_attack_action_button.disabled = (
+			attacking_city.owner_id != _game_state.active_player_id
+			or attacking_city.unit_count < 2
+		)
+		return
+
+	_attacker_commitment.show()
+	_attacker_commitment.min_value = 1
+	_attacker_commitment.max_value = maxi(1, attacking_city.unit_count)
+	_attacker_commitment.value = mini(
+		maxi(1, int(_attacker_commitment.value)),
+		attacking_city.unit_count
+	)
+	_attack_action_button.disabled = false
