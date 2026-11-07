@@ -314,6 +314,8 @@ Presentation tests should not be a prerequisite for testing domain logic.
 - New functionality must include appropriate tests.
 - Existing tests must continue to pass after changes are made.
 - Tests should be runnable through documented commands, including headless execution where applicable.
+- Run all Godot tests headlessly with `godot --headless --path . --script res://tests/run_tests.gd`.
+- The test runner executes the unit and integration test scripts and the presentation integration scene, and exits unsuccessfully if any test fails.
 - Agents must report which tests were executed and whether they passed.
 - Test failures must be investigated and reported rather than ignored or bypassed.
 - Code changes should not introduce new errors or warnings without explanation.
