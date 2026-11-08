@@ -77,17 +77,19 @@ func _test_legal_and_rejected_placements() -> void:
 	_expect(placement_result.succeeded(), "A reachable owned city should accept a reinforcement.")
 	_expect(target_city.unit_count == 2, "A successful placement should add one unit.")
 	_expect(
-		state.active_player_id == "german_empire",
-		"Exhausting a reinforcement pool should pass control to the other player."
+		state.active_player_id == "allies",
+		"Exhausting a reinforcement pool should keep the player active for attacks."
 	)
 	_expect(
-		state.reinforcements_remaining == 0,
-		"The German player with fewer than five cities should have no reinforcements."
+		state.phase == GameState.Phase.ATTACK,
+		"Exhausting the reinforcement pool should begin the attack phase."
 	)
-
-	var premature_skip := state.skip_reinforcement_turn()
-	_expect(premature_skip.succeeded(), "A player with no units to place should be able to skip.")
-	_expect(state.active_player_id == "allies", "Skipping should advance to the next player's turn.")
+	var end_attack_result := state.end_attack_phase()
+	_expect(end_attack_result.succeeded(), "The active player should be able to end attacks.")
+	_expect(
+		state.phase == GameState.Phase.REORGANIZATION,
+		"Ending the attack phase should begin the reorganization phase."
+	)
 
 
 func _test_cog_capture_and_zero_pool_skip() -> void:
@@ -101,11 +103,15 @@ func _test_cog_capture_and_zero_pool_skip() -> void:
 		state.reinforcements_remaining == 0,
 		"A player whose COG is enemy-held should receive no reinforcements."
 	)
-	var skip_result: GameActionResult = state.skip_reinforcement_turn()
-	_expect(skip_result.succeeded(), "A player with a captured COG should be able to skip.")
+	var skip_result: GameActionResult = state.begin_attack_phase()
+	_expect(skip_result.succeeded(), "A player with a captured COG should begin the attack phase.")
 	_expect(
-		state.active_player_id == "german_empire",
-		"Skipping a captured-COG turn should activate the other player."
+		state.phase == GameState.Phase.ATTACK,
+		"A captured-COG turn should advance to attack with no reinforcements."
+	)
+	_expect(
+		state.active_player_id == "allies",
+		"The player with a captured COG should remain active for their attack phase."
 	)
 
 

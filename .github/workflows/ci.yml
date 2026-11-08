@@ -29,6 +29,9 @@ jobs:
             - name: Test project startup
               run: godot --headless --path . --quit
 
+            - name: Run Godot tests
+              run: godot --headless --path . --script res://tests/run_tests.gd
+
             - name: Install GDScript toolkit
               run: |
                 python -m pip install "gdtoolkit==4.*"

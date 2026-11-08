@@ -95,6 +95,20 @@ func _initialize() -> void:
 		state.reinforcements_remaining == 3,
 		"Sixteen controlled cities should award three German reinforcements."
 	)
+	for reinforcement_index: int in state.reinforcements_remaining:
+		var reinforcement_result: GameActionResult = application.place_reinforcement("koblenz")
+		_expect(
+			reinforcement_result.succeeded(),
+			"Germany should be able to place reinforcements in its COG."
+		)
+	_expect(
+		state.phase == GameState.Phase.ATTACK,
+		"Completing reinforcements should begin the same player's attack phase."
+	)
+	_expect(
+		state.active_player_id == "german_empire",
+		"Completing reinforcements should not switch the active player."
+	)
 
 	var invalid_result: GameStartResult = application.start_new_game(" ", "German commander")
 	_expect(not invalid_result.succeeded(), "An empty leader name should prevent game initialization.")
@@ -103,9 +117,65 @@ func _initialize() -> void:
 		"Invalid names should return a clear message."
 	)
 
+	_test_quick_start_is_deterministic()
+
 	if _failures == 0:
 		print("New game initialization integration tests passed.")
 	quit(1 if _failures > 0 else 0)
+
+
+func _test_quick_start_is_deterministic() -> void:
+	var first_random_generator := RandomNumberGenerator.new()
+	first_random_generator.seed = 2718
+	var first_application: GameApplication = GameApplicationScript.new(first_random_generator)
+	var first_result: GameStartResult = first_application.start_quick_game()
+	_expect(first_result.succeeded(), "Quick start should initialize successfully.")
+	if not first_result.succeeded():
+		return
+
+	var second_random_generator := RandomNumberGenerator.new()
+	second_random_generator.seed = 2718
+	var second_application: GameApplication = GameApplicationScript.new(second_random_generator)
+	var second_result: GameStartResult = second_application.start_quick_game()
+	_expect(second_result.succeeded(), "A second seeded quick start should initialize.")
+	if not second_result.succeeded():
+		return
+
+	var first_state := first_result.game_state
+	var second_state := second_result.game_state
+	_expect(first_state.players[0].name == "Joffre", "Quick start should name the Allies Joffre.")
+	_expect(first_state.players[1].name == "Moltke", "Quick start should name Germany Moltke.")
+	_expect(
+		first_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT,
+		"Quick start should finish both players' reserve placement."
+	)
+	_expect(
+		first_state.active_player_id == "german_empire",
+		"Quick start should begin the first German reinforcement phase."
+	)
+	var total_units := 0
+	var allies_units := 0
+	var german_units := 0
+	for city_index: int in first_state.cities.size():
+		var first_city := first_state.cities[city_index]
+		var second_city := second_state.find_city(first_city.id)
+		total_units += first_city.unit_count
+		if first_city.owner_id == "allies":
+			allies_units += first_city.unit_count
+		else:
+			german_units += first_city.unit_count
+		_expect(
+			first_city.owner_id == "allies" or first_city.owner_id == "german_empire",
+			"Random reserve placement must preserve city ownership."
+		)
+		_expect(
+			first_city.owner_id == second_city.owner_id
+			and first_city.unit_count == second_city.unit_count,
+			"Quick start should produce the same setup from the same random seed."
+		)
+	_expect(total_units == 42, "Quick start should place exactly ten reserve units.")
+	_expect(allies_units == 21, "Quick start should place five reserves for the Allies.")
+	_expect(german_units == 21, "Quick start should place five reserves for Germany.")
 
 
 func _expect(condition: bool, message: String) -> void:
