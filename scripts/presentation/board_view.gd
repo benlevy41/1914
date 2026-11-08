@@ -88,6 +88,13 @@ func get_selected_city_id() -> String:
 	return _selected_city_id
 
 
+func clear_selection() -> void:
+	_selected_city_id = ""
+	for marker_id: String in _markers:
+		var marker: BoardCityMarker = _markers[marker_id]
+		marker.button_pressed = false
+
+
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), BACKGROUND_COLOR)
 	if _map_definition == null:

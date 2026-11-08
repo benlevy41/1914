@@ -1,348 +1,490 @@
 # 1914: The Western Front — Software Architecture
 
-## 1. Purpose and scope of this document
+## 1. Purpose and Scope
 
-This document provides a high-level description of the software architecture for the turn-based strategy game "1914: The Western Front."
+This document defines the software architecture and technical principles for *1914: The Western Front*, a turn-based strategy game developed using Godot and GDScript.
 
-The document is aimed at developers and agents that will write code for this project. It is intended to help them understand the context in which their code will run, the expected quality standards for their code, and the boundaries and restrictions on developers and agents.
+Its purpose is to:
+- Establish clear responsibilities and boundaries between major parts of the application.
+- Provide architectural guidance for implementation decisions.
+- Give developers and AI coding agents a consistent understanding of the intended design.
+- Support incremental development without prematurely prescribing implementation details.
 
-This document will change. Please refer to it frequently.
+This document describes the software structure, not the complete game rules. Game mechanics and rules are documented separately in `docs/game_rules.md`.
 
-This document will not specify the exact classes and functions that must be built. Developers and agents will have flexibility in creating code required to fulfill their assigned tasks, which will generally involve introducing new functionality or fixing errors in existing code. However, developers and agents must adhere to the architectural principles and constraints established here.
+The architecture should support the current hot-seat prototype while avoiding unnecessary constraints on future capabilities, including AI-controlled players and online multiplayer.
 
-Architectural decisions not addressed by this document should be brought to the project owner for consideration. Developers and agents may propose alternative designs and explain their rationale, but must not implement changes to the established architecture without approval.
+The architecture is intentionally conceptual in areas where implementation decisions are not yet necessary. Specific classes, methods, data structures, and frameworks should be determined as the project develops, provided they remain consistent with the principles and boundaries established here.
 
-For a description of the game and its rules, please reference `docs/game_rules.md`.
+## 2. Architectural Principles
 
-## 2. Project overview and coding principles
+### 2.1 Separation of Concerns
 
-"1914: The Western Front" will run on the Godot game engine and will be written primarily in the GDScript language. We use GitHub for version control, CI/CD, and issue tracking.
+The application should be divided into distinct layers with clearly defined responsibilities.
 
-The architecture will be designed to facilitate rapid prototyping and test-driven development.
+Each component should have a focused purpose and should not take on responsibilities belonging to another component or layer.
 
-We will adhere to the following coding principles:
+### 2.2 Encapsulation
 
-1. **Separation of concerns** – Each component should serve one specific purpose. If the scope of that function expands, we should look at creating new components instead of adding more functionality to an existing one.
+Components should expose defined interfaces rather than allowing unrelated components to access or modify their internal implementation.
 
-2. **Encapsulation** – Each component should be a self-contained unit to the greatest extent possible. When necessary, dependencies must be explicit and should be deliberately injected instead of reaching into unrelated components. Communication between components should be achieved through defined interfaces.
+Game state and operations that modify it must be controlled so that game rules and data integrity are preserved.
 
-3. **Incremental development** – Do not add abstractions or frameworks before they are needed. This reduces unnecessary work and allows for faster, testable development.
+### 2.3 Incremental Development
 
-4. **Testability** – Components should be testable in isolation without requiring the implementation or simulation of unrelated components. Integration testing involving multiple components will be deliberate and separate from unit testing.
+Development should proceed in small, functional increments.
 
-5. **Architectural stability** – Changes to the basic architecture of the software will not be made without authorization from the project owner. Requests for architectural changes should be raised to the project owner.
+Avoid introducing abstractions, frameworks, or complexity before there is a demonstrated need. Prefer the simplest implementation that satisfies current requirements without compromising the established architecture.
 
-6. **Maintainability** – Code should be understandable, appropriately documented, and maintainable by developers who did not write it. Avoid unnecessary complexity, overly elaborate abstractions, and implementation shortcuts that make future changes difficult.
+### 2.4 Testability
 
-These principles establish the overall expectations for the project. More specific implementation requirements are described in the sections below.
+Core game logic should be testable independently of the Godot scene tree and presentation layer.
 
-## 3. System architecture
+Dependencies should be explicit and controllable where practical, particularly for operations involving randomness.
 
-The software will be structured in four functional layers: presentation, application, domain, and infrastructure.
+### 2.5 Architectural Stability
 
-### Presentation layer
+The architecture should remain consistent as the project grows.
 
-This layer is how the user interacts with the program. It displays the gameboard and menus and receives mouse and keyboard input.
+Significant architectural changes should be proposed and evaluated before implementation. Developers and AI agents may recommend alternatives, but should not independently make major architectural changes.
 
-This is primarily the domain of the Godot engine and will be composed primarily of Godot scenes.
+### 2.6 Maintainability
 
-The presentation layer interacts with the application layer to obtain the information needed to render the game and to communicate user input and intent.
+Code should favor clarity, consistency, and understandable behavior over unnecessary cleverness or abstraction.
 
-The presentation layer will not duplicate authoritative game state and will not contain game control logic such as turn management or game rules, which are the responsibility of other software layers.
+Implementation decisions should make it straightforward for another developer to understand the purpose and responsibilities of a component.
 
-### Application layer
+## 3. System Architecture
 
-The application layer is the game control layer. It acts as a conductor, ensuring smooth turn management, transitions between game phases, and transitions between player turns.
+The system is organized into four functional layers: Presentation, Application, Domain, and Infrastructure.
 
-The application layer interprets user input and coordinates interactions between the presentation, domain, and infrastructure layers. It is responsible for managing the lifecycle of the active game and its authoritative GameState, but it does not independently implement game rules or determine how things are rendered.
+These layers describe responsibilities and dependency boundaries. They do not necessarily correspond one-to-one with directories, scenes, or individual classes.
 
-For example, the application layer receives a request from the presentation layer indicating that the user has selected an enemy city as an attack target. The application layer determines the appropriate action in the current game context, calls the domain layer to determine whether the attack is legal, and, if it is, coordinates the resolution of the attack.
+### 3.1 Presentation Layer
 
-### Domain layer
+**Responsibility:** Handle the visual presentation of the game and interaction with the user.
 
-The domain layer contains the underlying game logic. If the application layer is the conductor, the domain layer might be the sheet music in front of the orchestra.
+The presentation layer includes:
+- Game screens, menus, and user interface.
+- Map and board rendering.
+- Visual representations of cities, units, and other game elements.
+- Mouse and keyboard input.
+- Visual feedback, animations, and audio.
+- Displaying game information and results.
 
-The domain layer contains the core game concepts and rules, including players, cities, map relationships, game rules, and combat services.
+The presentation layer communicates user intent to the application layer and displays information derived from the current game state.
 
-The domain layer primarily responds to requests from the application layer. It is responsible for enforcing game rules and ensuring that operations affecting game state preserve its integrity.
+It must not:
+- Implement game rules or independently determine the validity of game actions.
+- Maintain a separate authoritative representation of game state.
+- Modify game state directly.
+- Make assumptions about how application or domain operations are implemented.
 
-The domain layer should remain independent of the Godot scene tree, presentation components, and direct file-system operations. It may rely on explicitly defined dependencies for lower-level services, such as random number generation.
+Presentation components may maintain temporary interaction state, such as the currently selected city or an active UI mode, provided that this does not become a competing source of authoritative game state.
 
-### Infrastructure layer
+The presentation layer should be replaceable or substantially modified without requiring changes to the underlying game rules.
 
-This layer provides technical services that interact with the underlying operating system, file system, and external resources. Examples include reading and writing files, saving and loading game data, loading external resources, and generating random numbers.
+### 3.2 Application Layer
 
-The infrastructure layer is responsible for implementing these technical capabilities, but it does not determine when or why they are used. Those decisions are made by the application or domain layers, depending on the purpose of the operation.
+**Responsibility:** Coordinate game execution and manage the lifecycle of a game.
 
-The application layer generally coordinates operations involving infrastructure services, such as initiating a save or load operation and handling its result. The domain layer may also depend on infrastructure-provided capabilities through explicitly defined interfaces, such as requesting random values during combat.
+The application layer acts as the control layer of the system. It coordinates interactions between presentation, domain, and infrastructure components.
 
-The infrastructure layer should not contain game rules or make decisions about game behavior. It should provide the technical means to carry out operations requested by other layers.
+Responsibilities include:
+- Initializing and managing the lifecycle of a game.
+- Managing turn progression and game phases.
+- Receiving and coordinating player actions.
+- Invoking domain operations to validate and resolve game actions.
+- Coordinating state changes and related operations.
+- Invoking infrastructure services when needed.
+- Communicating results and relevant events to the presentation layer.
 
-## 4. Core domain model
+The application layer is responsible for managing the lifecycle of the authoritative `GameState`.
 
-The following are some of the components that will form the core of the game domain model. This list is not comprehensive and is expected to change as development progresses.
+It should coordinate operations rather than independently implement game rules. Rules and game-specific constraints belong in the domain layer.
 
-**GameState** – Represents the authoritative state of an active game, including information such as player identities, turn progression, city ownership, unit distribution, and other dynamic game information. The GameState concept provides a central representation of the information required to describe the current game and support saving, loading, and game logic. The specific organization of this information, including how responsibilities are distributed between GameState, City, and other domain components, is intentionally left open to implementation.
+The application layer must not depend on a particular presentation implementation or assume that all player decisions originate from direct user interaction.
 
-**Player** – Represents an individual player and their identity. Will be used for identifying players in game records and saved games, and may contain other player-specific information as needed.
+#### Player Decision Sources
 
-**City** – Represents an individual capturable territory on the game map. A city has a permanent identity and associated geographic information, as well as dynamic game information such as ownership and unit count. The specific organization and management of this information will be determined during implementation.
+The application should distinguish between a player in the game and the mechanism through which that player's decisions are obtained.
 
-**MapDefinition** – Represents the static information describing the game map, such as city identifiers, names, geographic positions, and connections between cities. This information is distinct from the changing state of an active game.
+A player's decisions may originate from different sources, including:
+- A local human interacting through the presentation layer.
+- An AI-controlled player.
+- A remote human player communicating through a network connection.
 
-**GameMap** – Represents the relationships and connectivity between cities. The map will be modeled conceptually as a graph, with cities as vertices and connections as edges. The initial implementation will support road connections. The design should allow for future changes such as multiple connection types, directionality, or distance without requiring a fundamental redesign.
+The application layer should process resulting player actions through a consistent game-action workflow, regardless of their origin.
 
-**GameRules** – Validates player actions against game rules. For example, if a player attempts to reinforce a city that is not connected to their COG, the rules should determine that the action is invalid.
+The mechanism that generates or transports a decision should not independently execute game rules or modify authoritative game state. Actions must be processed through the application's normal coordination and domain validation paths.
 
-**CombatService** – Determines the outcome of individual rounds of combat, including dice rolls and resulting unit losses. It should not be responsible for managing player decisions or the overall attack sequence.
+The exact representation of player decision sources, their interfaces, and their lifecycle remain implementation decisions.
 
-The division of responsibilities and the specific organization of these concepts will be refined during implementation. Developers and agents should avoid introducing unnecessary complexity or assuming that each concept must correspond to a single class.
+### 3.3 Domain Layer
 
-## 5. Key workflows and interactions
+**Responsibility:** Represent the game and enforce its rules.
 
-The following workflows describe the general sequence of operations involved in major game activities. They are intended to provide context for developers and agents, not to prescribe the exact implementation or require that all steps be handled by a single component or function.
+The domain layer contains the core concepts, state, and operations that define the game.
 
-The application layer generally coordinates these workflows, while the domain layer enforces game rules and resolves game operations.
+Expected domain concepts include:
+- `GameState`
+- `Player`
+- `City`
+- Map and connection relationships.
+- Game rules and validation.
+- Combat resolution.
+- Reinforcement and reorganization operations.
 
-### Initialize a new game
+The domain layer is responsible for:
+- Representing the authoritative logical state of the game.
+- Enforcing game rules and constraints.
+- Validating game operations.
+- Resolving game operations and determining their outcomes.
+- Preserving state integrity when changes occur.
 
-General sequence:
+The domain layer must not depend on the Godot scene tree, presentation components, or direct filesystem and network APIs.
 
-1. Prompt players for names.
-2. Generate an initial game configuration, including random city assignments, ensuring equal numbers of cities for each player and assigning each COG to the appropriate player.
-3. Load the required map resources and initialize the game state.
-4. Apportion reserve units.
-5. Prompt players to place reserve units until all units have been placed.
-6. Validate the resulting initial game state.
-7. Transition the game to active play.
+It should not need to know whether a player action originated from a human, an AI, or a remote connection. It operates on game concepts and actions, not on the mechanism used to produce them.
 
-### Process a reinforcement action
+### 3.4 Infrastructure Layer
 
-General sequence:
+**Responsibility:** Provide technical capabilities that interact with external resources or systems.
 
-1. Determine the number of reinforcements available to the active player.
-2. Prompt the player to select a city and the number of units to place.
-3. Determine whether the proposed placement is legal under the game rules.
-4. If legal, apply the resulting change to game state.
-5. Determine whether additional reinforcements remain to be placed.
-6. Return control to the player when placement is complete.
+Infrastructure responsibilities may include:
+- Saving and loading games.
+- Loading map definitions and other external resources.
+- Reading configuration data.
+- Providing random-number generation.
+- Future network communication and related technical services.
 
-### Resolve an attack
+Infrastructure components implement technical capabilities used by the application or domain.
 
-An attack consists of one or more individual rounds of combat. Each round is resolved independently, allowing the player to decide whether to continue attacking or take another action after seeing the result.
+They should not decide when or why a game operation occurs, and they must not contain game rules.
 
-General sequence:
+For example, the application layer decides when a game should be saved and coordinates the operation. An infrastructure service handles serialization and filesystem access.
 
-1. Receive an attack request from the presentation layer.
-2. Validate the requested attack against the game rules.
-3. Obtain the number of units the attacker and defender will commit.
-4. Resolve one round of combat.
-5. Apply the resulting changes to game state.
-6. Determine whether the attack resulted in capture, elimination of the attacking force, or continued combat.
-7. Return the result to the application layer for presentation to the players.
+Similarly, future networking infrastructure may transport player actions and game information, but should not independently determine whether those actions are legal.
 
-After the result is presented, the application layer returns control to the player to decide whether to continue attacking the same city, initiate another attack, or end the attack phase.
+## 4. Core Domain Model
 
-The combat service is responsible for resolving an individual round of combat. It is not responsible for prompting players or managing their subsequent decisions.
+This section describes the responsibilities of major game concepts without prescribing exact class structures or method signatures.
 
-### Complete a turn
+### 4.1 GameState
 
-General sequence:
+`GameState` represents the authoritative logical state of a game at a particular moment.
 
-1. Determine whether the active player has completed the current turn phase.
-2. Validate and process any required phase-end operations.
-3. Advance the game to the next phase or, if all phases are complete, end the active player's turn.
-4. Update the active player.
-5. Initialize the next player's turn, including determining their available reinforcements and setting the appropriate game phase.
-6. Notify the presentation layer of relevant changes so that the interface can be updated.
+It includes the information required to describe the current game, such as:
+- Players and their identities.
+- City ownership and unit distribution.
+- Current player.
+- Current turn and game phase.
+- Other information required to represent the complete game state.
 
-The application layer coordinates these transitions, while the domain layer enforces any applicable game rules.
+The state does not need to be contained in one monolithic class or stored directly in a single object.
 
-## 6. Interfaces and communication contracts
+The application layer manages the lifecycle of `GameState`. The domain layer defines and enforces the rules governing changes to it.
 
-The following requirements establish how components and layers should communicate. They are intended to promote encapsulation, maintainability, and predictable interactions without prescribing exact method signatures or implementation details.
+The exact division of information and responsibilities between `GameState`, `City`, and other domain components remains open.
 
-### 6.1 General communication rules
+### 4.2 Player
 
-- Components should communicate through defined interfaces.
-- Dependencies should be explicit and passed to components when needed, rather than retrieved through unrelated components or global references.
-- The application layer coordinates interactions between the presentation, domain, and infrastructure layers.
-- The domain layer must not depend on the presentation layer.
-- Components should not access or modify the internal data of unrelated components directly.
-- Communication mechanisms should be appropriate to the relationship between components and should not introduce unnecessary complexity.
+A `Player` represents a participant in the game and the game-related information associated with that participant.
 
-### 6.2 State ownership and modification
+Player identity and game information should be conceptually separate from the mechanism used to obtain that player's decisions.
 
-The application layer is responsible for the lifecycle and management of the authoritative GameState. This includes creating the initial game state, maintaining the active game, and coordinating state changes.
+A player may be controlled locally, remotely, or by an AI implementation without changing the domain representation of that player.
 
-The domain layer is responsible for enforcing the rules governing changes to game state. Operations that modify game state must preserve its validity and consistency.
+### 4.3 City
 
-The specific division of state-management responsibilities between GameState and other domain components, including City, is intentionally left open to implementation.
+A `City` represents an individual capturable territory on the game map.
 
-The following requirements apply:
+It has a permanent identity and geographic information, as well as dynamic game information such as ownership and unit count.
 
-- GameState represents the authoritative information describing the current game.
-- Presentation components must not directly modify authoritative game state.
-- Components must not maintain redundant copies of authoritative game information.
-- Changes to game state must occur through controlled operations that preserve applicable game rules.
-- The application layer must coordinate state changes and ensure that the resulting state is communicated to the presentation layer as needed.
+The exact organization of city information within the domain model remains open.
 
-### 6.3 Requests, responses, and errors
+Changes to ownership or unit counts must occur through controlled domain operations that preserve game rules and state integrity.
 
-Requests between components should have clearly defined inputs and expected outcomes.
+### 4.4 Map Definition and Game Map
 
-- Successful operations should return enough information for the requesting component to respond appropriately.
-- Invalid requests should return meaningful information explaining why the operation could not be completed.
-- Invalid requests must not leave game state partially modified or inconsistent.
-- Expected invalid player actions should be handled as normal game conditions rather than software errors. For example, an attempt to attack a city that is not adjacent to the player's territory should be rejected without causing the game to fail.
+The map has both static and dynamic aspects.
 
-The specific mechanisms used to represent successful operations, invalid actions, and software errors will be determined during implementation.
+A static map definition describes the geography and topology of the game board, including:
+- City identifiers and names.
+- City locations or map positions.
+- Connections between cities.
+- Connection types, such as roads.
 
-### 6.4 Events and notifications
+The logical game map represents cities and their connections as a graph, with cities as vertices and connections as edges.
 
-Components should be able to communicate relevant changes or completed operations without creating unnecessary dependencies on the internal implementation of other components.
+The map should be modeled in a way that allows future connection properties, such as directionality or distance, if gameplay requires them.
 
-Examples of events or notifications include:
+Dynamic information such as city ownership and unit counts belongs to the current game state rather than the static map definition.
 
-- A city's ownership has changed.
-- A combat round has completed.
-- The active player has changed.
-- The game phase has changed.
-- A game has been initialized or completed.
+The visual representation of the map is a presentation concern and should not dictate the underlying logical map structure.
 
-The presentation layer should receive the information it needs to update the interface without having to understand the internal mechanics that produced the change.
+### 4.5 Game Rules and Domain Operations
 
-The specific communication mechanism will be determined during implementation. Godot signals may be appropriate for communication within the presentation layer, but domain logic should not depend on Godot signals.
+Game rules define the legal operations and constraints of the game.
 
-## 7. Godot and GDScript conventions
+Domain operations should validate their inputs and ensure that state changes preserve the rules.
 
-The project will use Godot 4.x and GDScript. Developers and agents should follow these conventions to maintain consistency and preserve the separation between software layers.
+Invalid operations must not leave the game state partially modified.
 
-### 7.1 Separation from the Godot scene tree
+The exact organization of rules and operations into classes or services remains open. Concepts such as `GameRules` and `CombatService` are possible organizational approaches, not mandatory class definitions.
 
-Godot Nodes and scenes are primarily intended for presentation, interaction, and other engine-specific functionality.
+## 5. Key Workflows
 
-Domain and application logic should generally be implemented using ordinary GDScript classes rather than Node subclasses. This allows game logic to be tested independently of the Godot scene tree.
+The application layer coordinates workflows by receiving requests, invoking domain operations, coordinating infrastructure as needed, and communicating results.
 
-Domain components must not depend on scene paths, node references, or presentation controls.
+The workflows below describe expected behavior rather than prescribing exact method calls or implementation structures.
 
-### 7.2 Scenes and Nodes
+### 5.1 Initialize New Game
 
-Godot scenes should be used to organize visual elements and user interactions, including the game board, city representations, menus, and interface components.
+The initialization process includes:
+- Establishing player identities.
+- Loading the static map definition.
+- Assigning cities to players, including their respective centers of gravity.
+- Initializing the game state.
+- Apportioning reserve units.
+- Coordinating initial unit placement.
+- Validating that the initial game state satisfies game rules.
+- Transitioning the game into its active state.
 
-Scenes may contain scripts that manage their own presentation behavior and communicate user intent to the application layer.
+Random assignments and other random operations should use controllable dependencies so that initialization can be tested reliably.
 
-Avoid placing game rules, turn management, or other domain responsibilities directly in presentation scripts.
+### 5.2 Reinforcement
 
-### 7.3 Composition and inheritance
+The reinforcement process includes:
+- Determining a player's reinforcement entitlement.
+- Obtaining the player's desired placement decisions.
+- Validating those decisions against game rules.
+- Applying valid placements to the game state.
+- Determining whether additional placements remain.
+- Completing the reinforcement phase when appropriate.
 
-Prefer simple composition over unnecessarily complicated inheritance hierarchies.
+The application coordinates the interaction. The domain determines entitlement, validates placement, and enforces relevant rules.
 
-Godot supports scene inheritance and script inheritance, but these mechanisms should be used when they provide a clear benefit rather than as a default approach.
+### 5.3 Attack
 
-### 7.4 Signals and event communication
+An attack may consist of multiple combat rounds.
 
-Godot signals may be used for appropriate communication between presentation components and for notifying other components of events.
+Each combat round is an independently resolved operation. The application returns control to the player after each round so the player can decide whether to continue the attack or take another action.
 
-Signals should not be used as a substitute for clearly defined interfaces or as a way to obscure dependencies between components.
+The workflow includes:
+1. Receive an attack request.
+2. Validate the requested attack.
+3. Obtain attacking and defending unit commitments as required by the rules.
+4. Resolve one combat round.
+5. Apply the resulting changes to the game state.
+6. Determine whether the city has been captured, the attacker has been eliminated, or combat may continue.
+7. Return the result to the application and presentation layers.
 
-### 7.5 Autoloads and global state
+The combat operation should resolve one round and report its outcome. It should not prompt players or independently manage subsequent decisions.
 
-Godot supports globally accessible objects through autoloads. These may be appropriate for application-wide services such as configuration or audio management.
+### 5.4 Complete Turn
 
-Autoloads should be used sparingly. They must not become an alternative source of authoritative game state or a shortcut around the project's dependency and encapsulation requirements.
+The turn-completion process includes:
+- Completing phase-end processing.
+- Advancing to the next phase or ending the turn.
+- Updating the active player.
+- Initializing the next player's turn and applicable reinforcements.
+- Communicating relevant state changes to the presentation layer.
 
-### 7.6 Static typing and code conventions
+The application coordinates turn progression while the domain enforces the rules governing it.
 
-Use GDScript's static typing features where practical, particularly for function parameters, return values, and important variables.
+## 6. Interfaces and Communication Contracts
 
-Code should follow consistent naming, formatting, and documentation conventions. Developers and agents should follow existing project conventions rather than introducing competing styles.
+Components should interact through defined interfaces and explicit dependencies. The architecture should make the direction and purpose of communication understandable without requiring components to know one another's internal implementation.
 
-### 7.7 Godot version and dependencies
+### 6.1 General Communication Rules
 
-Developers and agents must use APIs and features compatible with the Godot version established for the project.
+- Components should communicate through defined interfaces rather than accessing unrelated internal details.
+- Dependencies should be explicit and injected where practical.
+- The application layer coordinates operations between presentation, domain, and infrastructure.
+- The domain layer must not depend on presentation components or the Godot scene tree.
+- Presentation communicates user intent to the application and displays resulting information.
+- Player decision sources provide actions to the application; they do not bypass normal game-action processing.
 
-New plugins, frameworks, external libraries, or other dependencies must not be introduced without approval from the project owner.
+### 6.2 State Ownership and Modification
 
-The specific use of Godot Resources, ordinary GDScript classes, and other data-management mechanisms will be determined as implementation needs become clearer.
+- The application layer manages the lifecycle of the authoritative `GameState`.
+- The domain layer owns the rules governing valid state changes.
+- The presentation layer must not directly modify authoritative game state.
+- Components must not maintain competing authoritative copies of game state.
+- State changes must occur through controlled operations that preserve game rules and consistency.
+- Invalid operations must not partially modify game state.
 
-## 8. Testing and quality standards
+The precise mechanism through which domain operations change state—directly modifying state through controlled operations or returning results for the application to apply—remains an open implementation decision.
 
-Testing is an integral part of development. New functionality and modifications to existing functionality should include appropriate tests.
+### 6.3 Requests, Responses, and Errors
 
-Testing will be divided into three general categories.
+Operations should have defined inputs and identifiable outcomes.
 
-### 8.1 Unit testing
+Where appropriate, responses should communicate:
+- Whether an operation succeeded.
+- Relevant results or state changes.
+- Why an operation was rejected.
+- Any additional information required by the caller.
 
-Unit tests validate individual components in isolation.
+Invalid player actions are expected gameplay outcomes, not necessarily software errors. For example, an illegal attack should be rejected without crashing the application.
 
-- Domain logic must be testable independently of the Godot scene tree.
-- Tests should cover normal behavior, boundary conditions, and invalid operations.
-- Tests should validate expected behavior rather than simply reproduce the implementation.
-- Random or nondeterministic operations must be controllable during testing. For example, combat tests should be able to use predetermined dice rolls.
-- Unit tests should not require unrelated components to be implemented or simulated.
+Invalid operations must not leave the game state partially modified.
 
-### 8.2 Integration testing
+The application should distinguish expected gameplay rejections from unexpected software failures.
 
-Integration tests validate interactions between multiple components.
+### 6.4 Player Actions and Decision Sources
+
+Player actions should be represented independently of the interface or mechanism that produces them.
+
+The application should receive an action request, coordinate its validation and execution, and communicate the outcome.
+
+The same conceptual action should follow the same validation and execution path whether it originated from:
+- A local human player.
+- An AI player.
+- A remote human player.
+
+The representation of actions should contain the information necessary to evaluate and execute them without depending on presentation-specific objects, UI controls, or network-specific message formats.
+
+The exact action representation, decision-source interfaces, and network message contracts remain open.
+
+### 6.5 Events and Notifications
+
+The system should communicate meaningful game events to interested components without requiring them to know the internal implementation of the operation that produced the event.
 
 Examples include:
+- Game initialized or completed.
+- City ownership changed.
+- Combat round completed.
+- Active player changed.
+- Game phase changed.
 
-- Initializing a game and verifying the resulting game state.
-- Processing a reinforcement action and verifying that the appropriate city information changes.
-- Resolving combat and verifying the resulting unit counts and ownership.
-- Completing a turn and verifying that the active player and game phase change correctly.
-- Confirming that invalid operations do not leave game state inconsistent.
+The exact event mechanism remains an implementation decision. Godot signals may be appropriate for communication within the presentation layer, but domain logic must not depend on Godot signals.
 
-Integration testing should be deliberate and separate from unit testing.
+## 7. Godot and GDScript Conventions
 
-### 8.3 Presentation testing
+### 7.1 Scene Tree and Nodes
 
-Presentation tests validate user-facing behavior and interactions where practical.
+Godot uses a hierarchical scene tree composed of Nodes. Scenes organize reusable node hierarchies.
 
-Examples include:
+Godot Nodes and scenes should primarily be used for presentation, interaction, and other functionality that benefits from the scene tree.
 
-- Selecting cities on the game board.
-- Displaying the correct ownership and unit information.
-- Updating the interface when the active player or game phase changes.
-- Displaying appropriate feedback for invalid actions.
+Domain and application logic should generally be implemented as ordinary GDScript classes rather than Node subclasses.
 
-Presentation tests should not be a prerequisite for testing domain logic.
+Core domain logic must remain usable independently of the scene tree.
 
-### 8.4 Quality requirements
+### 7.2 Object Responsibilities
 
-- New functionality must include appropriate tests.
-- Existing tests must continue to pass after changes are made.
-- Tests should be runnable through documented commands, including headless execution where applicable.
-- Run all Godot tests headlessly with `godot --headless --path . --script res://tests/run_tests.gd`.
-- The test runner executes the unit and integration test scripts and the presentation integration scene, and exits unsuccessfully if any test fails.
-- Agents must report which tests were executed and whether they passed.
-- Test failures must be investigated and reported rather than ignored or bypassed.
-- Code changes should not introduce new errors or warnings without explanation.
+Use Nodes when scene-tree functionality, lifecycle callbacks, rendering, input, or other engine features are needed.
 
-The specific testing framework and supporting tools will be established separately as the development environment evolves.
+Use ordinary GDScript objects for domain and application concepts that do not require scene-tree behavior.
 
-## 9. Architectural decisions and unresolved questions
+Prefer composition and clear dependencies over elaborate inheritance structures.
 
-This section records significant architectural decisions and identifies areas that remain open or have been deliberately deferred.
+The exact choice between ordinary GDScript classes, Resources, and other Godot constructs should be made based on implementation needs while preserving architectural boundaries.
 
-Developers and agents should use this section to distinguish established requirements from decisions that still require consideration.
+### 7.3 Signals and Communication
 
-| Topic | Status | Notes |
-|---|---|---|
-| Four-layer architecture | Decided | Presentation, application, domain, and infrastructure. |
-| Authoritative GameState | Decided | The application layer manages the lifecycle of the authoritative game state. |
-| Domain independence from Godot presentation | Decided | Domain logic should not depend on Nodes, scenes, or presentation components. |
-| Graph-based map model | Decided | Cities are vertices and connections are edges. |
-| Static map data separated from dynamic game state | Decided | The exact implementation remains open. |
-| Ownership and unit-count representation | Open | The distribution of responsibilities between GameState, City, and other components will be determined during implementation. |
-| State modification mechanism | Open | Domain operations must enforce game rules, but the precise division of state modification between domain and application components remains to be determined. |
-| Road and railway connection types | Open | The initial implementation will support roads. Additional connection types may be introduced later. |
-| Event communication mechanism | Open | Godot signals may be appropriate for presentation-level communication. |
-| Save-file format | Deferred | To be determined once the game-state model is sufficiently established. |
-| Testing framework | Deferred | To be selected when the testing environment is established. |
-| Multiplayer support | Deferred | Not part of the initial architectural requirements. |
+Godot signals are appropriate for many presentation-level interactions and notifications.
 
-Significant architectural changes and decisions should be documented separately in `docs/decisions/` when appropriate. These records should describe the decision, the alternatives considered, and the rationale for the selected approach.
+They should not be used as a substitute for clear domain interfaces or to create implicit dependencies between architectural layers.
 
-Developers and agents must not treat open or deferred decisions as authorization to introduce permanent architectural changes without approval from the project owner.
+Domain logic should not require Godot-specific signaling mechanisms.
+
+### 7.4 Autoloads and Global State
+
+Avoid excessive use of autoload singletons.
+
+Autoloads should not become an alternative source of authoritative game state or a shortcut around explicit dependencies and architectural boundaries.
+
+### 7.5 GDScript Practices
+
+- Use static typing where practical, especially for function parameters, return values, and important variables.
+- Follow consistent naming and code organization conventions.
+- Prefer clear, maintainable implementations over unnecessary abstractions.
+- Use APIs and language features compatible with the project's installed Godot version.
+- Do not introduce plugins, frameworks, or external libraries without project owner approval.
+
+## 8. Testing and Quality Standards
+
+Testing should validate expected behavior and architectural boundaries rather than merely reproduce implementation details.
+
+### 8.1 Unit Tests
+
+Domain logic should be testable independently of the Godot scene tree.
+
+Unit tests should cover:
+- Normal expected behavior.
+- Boundary conditions.
+- Invalid operations.
+- State integrity after successful and rejected operations.
+- Randomized behavior using controllable or predetermined inputs where appropriate.
+
+Tests should isolate the behavior under examination and avoid unnecessary dependencies on unrelated components.
+
+### 8.2 Integration Tests
+
+Integration tests should validate interactions between application and domain components.
+
+Important workflows include:
+- Game initialization.
+- Reinforcement.
+- Combat.
+- Turn progression and completion.
+- Handling of invalid operations without corrupting state.
+
+### 8.3 Presentation Tests
+
+Presentation behavior should be tested where practical.
+
+However, the ability to test domain and application behavior must not depend on the availability of presentation tests or a running scene tree.
+
+### 8.4 Development Quality
+
+- New functionality should include appropriate tests.
+- Existing tests should continue to pass.
+- Tests should be runnable through documented commands, including headless execution where practical.
+- Test failures should be investigated rather than bypassed.
+- New errors or warnings should not be introduced without explanation.
+- Developers and agents should report which tests were run and identify any failures or limitations.
+
+The specific testing framework remains an implementation decision.
+
+## 9. Architectural Decisions and Unresolved Questions
+
+The following decisions are intentionally deferred until implementation needs make them clearer.
+
+### 9.1 Game State Organization
+
+The conceptual responsibilities of `GameState` and `City` are defined, but the exact division of data and behavior between them remains open.
+
+### 9.2 State Mutation Mechanism
+
+It remains undecided whether domain operations will directly modify state through controlled interfaces or return results for the application layer to apply.
+
+Either approach must preserve domain authority over game rules and state integrity.
+
+### 9.3 Domain and Application Interfaces
+
+Exact class structures, method signatures, and interface definitions should emerge as the implementation develops.
+
+They should remain consistent with the layer responsibilities and communication contracts in this document.
+
+### 9.4 Resource and Data Representation
+
+The choice between Godot Resources, ordinary GDScript classes, and other representations for map definitions and game data remains open.
+
+### 9.5 Player Decision Mechanisms
+
+The architecture establishes that player decisions may originate from local human input, AI, or remote human players.
+
+The exact interfaces and implementation of these mechanisms are deferred. The current hot-seat implementation should not require premature networking or AI abstractions.
+
+### 9.6 Persistence and Networking
+
+The architecture should preserve the ability to represent and serialize a complete game state and to communicate player actions through future infrastructure.
+
+The save format, network architecture, server authority model, and synchronization mechanisms are not yet defined.
+
+### 9.7 Testing Framework
+
+The specific testing framework and supporting tooling remain open until the project's testing environment is established.

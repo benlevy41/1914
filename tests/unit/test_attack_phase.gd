@@ -38,6 +38,18 @@ func _test_attack_validation() -> void:
 		not state.validate_attack_source("german_home").succeeded(),
 		"An enemy-controlled city must not be selectable as an attack origin."
 	)
+	_expect(
+		not state.validate_attack_target("allies_target").succeeded(),
+		"A city controlled by the active player must not be selectable as an attack target."
+	)
+	_expect(
+		state.validate_attack_target("german_target").succeeded(),
+		"An enemy-controlled city should be selectable as an attack target."
+	)
+	_expect(
+		not state.validate_attack_target("unknown_city").succeeded(),
+		"An unknown city must not be selectable as an attack target."
+	)
 	state.find_city("allies_home").unit_count = 0
 	_expect(
 		not state.validate_attack_source("allies_home").succeeded(),

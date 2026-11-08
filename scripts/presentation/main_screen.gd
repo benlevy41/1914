@@ -10,6 +10,8 @@ var _is_entering_german_name: bool = false
 var _selected_city_id: String = ""
 var _attack_source_city_id: String = ""
 var _attack_target_city_id: String = ""
+var _reorganization_source_city_id: String = ""
+var _reorganization_target_city_id: String = ""
 var _awaiting_defender_commitment: bool = false
 var _displayed_phase: int = -1
 
@@ -56,6 +58,21 @@ var _displayed_phase: int = -1
 @onready var _end_attack_button: Button = (
 	$MarginContainer/Content/MainLayout/Sidebar/AttackPanel/EndAttack
 )
+@onready var _reorganization_panel: VBoxContainer = (
+	$MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel
+)
+@onready var _reorganization_selection: Label = (
+	$MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel/ReorganizationSelection
+)
+@onready var _reorganization_commitment: SpinBox = (
+	$MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel/ReorganizationCommitment
+)
+@onready var _move_units_button: Button = (
+	$MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel/MoveUnits
+)
+@onready var _end_reorganization_button: Button = (
+	$MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel/EndReorganization
+)
 
 func _ready() -> void:
 	var random_generator := RandomNumberGenerator.new()
@@ -70,9 +87,12 @@ func _ready() -> void:
 	_phase_action_button.pressed.connect(_on_phase_action_pressed)
 	_attack_action_button.pressed.connect(_on_attack_action_pressed)
 	_end_attack_button.pressed.connect(_on_end_attack_pressed)
+	_move_units_button.pressed.connect(_on_move_units_pressed)
+	_end_reorganization_button.pressed.connect(_on_end_reorganization_pressed)
 	_setup_panel.hide()
 	_game_panel.hide()
 	_attack_panel.hide()
+	_reorganization_panel.hide()
 	_setup_error.text = ""
 	_menu_error.text = ""
 	_phase_action_button.disabled = true
@@ -157,8 +177,11 @@ func _on_city_selected(city_id: String) -> void:
 
 	_selected_city_id = city_id
 	var attack_selection_result := GameActionResult.new()
+	var reorganization_selection_result := GameActionResult.new()
 	if _game_state.phase == GameState.Phase.ATTACK and not _awaiting_defender_commitment:
 		attack_selection_result = _update_attack_selection(city_id)
+	elif _game_state.phase == GameState.Phase.REORGANIZATION:
+		reorganization_selection_result = _update_reorganization_selection(city_id)
 	var owner_name := "Unoccupied"
 	if not city_state.owner_id.is_empty():
 		var owner := _game_state.find_player(city_state.owner_id)
@@ -177,6 +200,8 @@ func _on_city_selected(city_id: String) -> void:
 	_update_phase_status()
 	if not attack_selection_result.succeeded():
 		_turn_status.text = attack_selection_result.error_message
+	elif not reorganization_selection_result.succeeded():
+		_turn_status.text = reorganization_selection_result.error_message
 
 
 func _on_phase_action_pressed() -> void:
@@ -218,6 +243,10 @@ func _update_attack_selection(city_id: String) -> GameActionResult:
 			return validation_result
 		_attack_source_city_id = city_id
 	elif city_id != _attack_source_city_id:
+		var validation_result := _game_application.validate_attack_target(city_id)
+		if not validation_result.succeeded():
+			_update_attack_selection_label()
+			return validation_result
 		_attack_target_city_id = city_id
 	_update_attack_selection_label()
 	return GameActionResult.new()
@@ -340,6 +369,78 @@ func _on_end_attack_pressed() -> void:
 	_update_phase_status()
 
 
+func _update_reorganization_selection(city_id: String) -> GameActionResult:
+	if _reorganization_source_city_id.is_empty() or not _reorganization_target_city_id.is_empty():
+		_reorganization_source_city_id = ""
+		_reorganization_target_city_id = ""
+		var source_result := _game_application.validate_reorganization_source(city_id)
+		if not source_result.succeeded():
+			_update_reorganization_controls()
+			return source_result
+		_reorganization_source_city_id = city_id
+	elif city_id != _reorganization_source_city_id:
+		var target_result := _game_application.validate_reorganization_move(
+			_reorganization_source_city_id,
+			city_id,
+			1
+		)
+		if not target_result.succeeded():
+			_update_reorganization_controls()
+			return target_result
+		_reorganization_target_city_id = city_id
+	_update_reorganization_controls()
+	return GameActionResult.new()
+
+
+func _on_move_units_pressed() -> void:
+	var result := _game_application.move_reorganization_units(
+		_reorganization_source_city_id,
+		_reorganization_target_city_id,
+		int(_reorganization_commitment.value)
+	)
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		return
+
+	var source_name := _city_display_name(_reorganization_source_city_id)
+	var target_name := _city_display_name(_reorganization_target_city_id)
+	_reorganization_source_city_id = ""
+	_reorganization_target_city_id = ""
+	_board.refresh_state(_game_state)
+	_update_reorganization_controls()
+	_turn_status.text = "Moved units from %s to %s." % [source_name, target_name]
+
+
+func _on_end_reorganization_pressed() -> void:
+	var result := _game_application.end_reorganization_phase()
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		return
+	_board.refresh_state(_game_state)
+	_update_phase_status()
+
+
+func _update_reorganization_controls() -> void:
+	var source_name := _city_display_name(_reorganization_source_city_id)
+	var target_name := _city_display_name(_reorganization_target_city_id)
+	if source_name.is_empty():
+		_reorganization_selection.text = "Select a source city, then a destination."
+	elif target_name.is_empty():
+		_reorganization_selection.text = "Moving from %s. Select a destination." % source_name
+	else:
+		_reorganization_selection.text = "%s to %s." % [source_name, target_name]
+
+	var source_city := _game_state.find_city(_reorganization_source_city_id)
+	_move_units_button.disabled = source_city == null or target_name.is_empty()
+	if source_city != null:
+		_reorganization_commitment.min_value = 1
+		_reorganization_commitment.max_value = maxi(1, source_city.unit_count)
+		_reorganization_commitment.value = mini(
+			maxi(1, int(_reorganization_commitment.value)),
+			source_city.unit_count
+		)
+
+
 func _update_phase_status() -> void:
 	if _displayed_phase != int(_game_state.phase):
 		if _game_state.phase == GameState.Phase.ATTACK:
@@ -347,6 +448,18 @@ func _update_phase_status() -> void:
 			_attack_target_city_id = ""
 			_awaiting_defender_commitment = false
 			_attack_result.text = ""
+		if _game_state.phase == GameState.Phase.REORGANIZATION:
+			_reorganization_source_city_id = ""
+			_reorganization_target_city_id = ""
+		if (
+			_game_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT
+			and _displayed_phase == int(GameState.Phase.REORGANIZATION)
+		):
+			_reorganization_source_city_id = ""
+			_reorganization_target_city_id = ""
+			_selected_city_id = ""
+			_board.clear_selection()
+			_selected_city_label.text = "Select a city on the board."
 		_displayed_phase = int(_game_state.phase)
 
 	if _game_state.phase == GameState.Phase.ACTIVE_PLAY:
@@ -354,6 +467,7 @@ func _update_phase_status() -> void:
 		_phase_action_button.text = "Placement complete"
 		_phase_action_button.disabled = true
 		_attack_panel.hide()
+		_reorganization_panel.hide()
 		return
 
 	var active_player := _game_state.find_player(_game_state.active_player_id)
@@ -363,6 +477,7 @@ func _update_phase_status() -> void:
 
 	if _game_state.phase == GameState.Phase.INITIAL_RESERVE_PLACEMENT:
 		_attack_panel.hide()
+		_reorganization_panel.hide()
 		_phase_action_button.show()
 		var reserves_remaining: int = _game_state.reserves_remaining_by_player_id[active_player.id]
 		_turn_status.text = "%s's turn - %d reserve units remaining." % [
@@ -375,6 +490,7 @@ func _update_phase_status() -> void:
 
 	if _game_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT:
 		_attack_panel.hide()
+		_reorganization_panel.hide()
 		_phase_action_button.show()
 		_game_status.text = (
 			"Reinforcement phase: place units in cities connected to your center of gravity."
@@ -403,6 +519,7 @@ func _update_phase_status() -> void:
 	_phase_action_button.hide()
 	if _game_state.phase == GameState.Phase.ATTACK:
 		_attack_panel.show()
+		_reorganization_panel.hide()
 		_game_status.text = (
 			"Attack phase: select a source city, then an adjacent target. "
 			+ "The defender chooses a commitment for each round."
@@ -422,10 +539,13 @@ func _update_phase_status() -> void:
 		return
 
 	_attack_panel.hide()
-	_turn_status.text = "Attack phase complete. Reorganization is not implemented yet."
+	_reorganization_panel.show()
 	_game_status.text = (
-		"Reorganization is not implemented yet; the next player's turn has not started."
+		"Reorganization phase: move units between occupied friendly cities along roads "
+		+ "held by your forces. The route need not connect to your center of gravity."
 	)
+	_turn_status.text = "%s's reorganization phase." % active_player.name
+	_update_reorganization_controls()
 
 
 func _update_attack_controls() -> void:

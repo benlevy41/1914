@@ -122,6 +122,12 @@ func validate_attack_source(attacking_city_id: String) -> GameActionResult:
 	return _active_game_state.validate_attack_source(attacking_city_id)
 
 
+func validate_attack_target(defending_city_id: String) -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before selecting an attack target.")
+	return _active_game_state.validate_attack_target(defending_city_id)
+
+
 func resolve_attack_round(
 	attacking_city_id: String,
 	defending_city_id: String,
@@ -157,3 +163,56 @@ func end_attack_phase() -> GameActionResult:
 	if _active_game_state == null:
 		return GameActionResult.new("Start a new game before ending the attack phase.")
 	return _active_game_state.end_attack_phase()
+
+
+func validate_reorganization_source(source_city_id: String) -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before selecting a city to reorganize.")
+	return _active_game_state.validate_reorganization_source(source_city_id)
+
+
+func validate_reorganization_move(
+	source_city_id: String,
+	target_city_id: String,
+	unit_count: int
+) -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before moving units.")
+	return _active_game_state.validate_reorganization_move(
+		source_city_id,
+		target_city_id,
+		unit_count
+	)
+
+
+func move_reorganization_units(
+	source_city_id: String,
+	target_city_id: String,
+	unit_count: int
+) -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before moving units.")
+	return _active_game_state.move_reorganization_units(
+		source_city_id,
+		target_city_id,
+		unit_count
+	)
+
+
+func end_reorganization_phase() -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before ending reorganization.")
+	var players := _active_game_state.players
+	if players.size() < 2:
+		return GameActionResult.new("At least two players are required to advance the turn.")
+
+	var active_player_index := -1
+	for player_index: int in players.size():
+		if players[player_index].id == _active_game_state.active_player_id:
+			active_player_index = player_index
+			break
+	if active_player_index < 0:
+		return GameActionResult.new("The active player is not in this game.")
+
+	var next_player_index := (active_player_index + 1) % players.size()
+	return _active_game_state.end_reorganization_phase(players[next_player_index].id)

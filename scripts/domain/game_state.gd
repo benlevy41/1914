@@ -143,6 +143,17 @@ func validate_attack_source(attacking_city_id: String) -> GameActionResult:
 	return GameActionResult.new()
 
 
+func validate_attack_target(defending_city_id: String) -> GameActionResult:
+	if phase != Phase.ATTACK:
+		return GameActionResult.new("Attack targets can only be selected during the attack phase.")
+	var defending_city := find_city(defending_city_id)
+	if defending_city == null:
+		return GameActionResult.new("The target city is not on the map.")
+	if defending_city.owner_id == active_player_id:
+		return GameActionResult.new("The target city is already controlled by the active player.")
+	return GameActionResult.new()
+
+
 func validate_attack(
 	attacking_city_id: String,
 	defending_city_id: String,
@@ -251,6 +262,79 @@ func end_attack_phase() -> GameActionResult:
 	return GameActionResult.new()
 
 
+func validate_reorganization_source(source_city_id: String) -> GameActionResult:
+	if phase != Phase.REORGANIZATION:
+		return GameActionResult.new("Cities can only be selected during reorganization.")
+	var source_city := find_city(source_city_id)
+	if source_city == null:
+		return GameActionResult.new("The source city is not on the map.")
+	if source_city.owner_id != active_player_id or source_city.unit_count <= 0:
+		return GameActionResult.new("Choose an occupied city owned by the active player.")
+	return GameActionResult.new()
+
+
+func validate_reorganization_move(
+	source_city_id: String,
+	target_city_id: String,
+	unit_count: int
+) -> GameActionResult:
+	var source_result := validate_reorganization_source(source_city_id)
+	if not source_result.succeeded():
+		return source_result
+
+	var source_city := find_city(source_city_id)
+	var target_city := find_city(target_city_id)
+	if target_city == null:
+		return GameActionResult.new("The target city is not on the map.")
+	if source_city_id == target_city_id:
+		return GameActionResult.new("Units must move to a different city.")
+	if target_city.owner_id != active_player_id or target_city.unit_count <= 0:
+		return GameActionResult.new("Choose an occupied city owned by the active player.")
+	if unit_count < 1 or unit_count > source_city.unit_count:
+		return GameActionResult.new("Choose at least one unit, up to the source garrison.")
+	if not _has_controlled_route(source_city_id, target_city_id):
+		return GameActionResult.new(
+			"Units can only move along roads occupied by the active player's forces."
+		)
+	return GameActionResult.new()
+
+
+func move_reorganization_units(
+	source_city_id: String,
+	target_city_id: String,
+	unit_count: int
+) -> GameActionResult:
+	var validation_result := validate_reorganization_move(
+		source_city_id,
+		target_city_id,
+		unit_count
+	)
+	if not validation_result.succeeded():
+		return validation_result
+
+	var source_city := find_city(source_city_id)
+	var target_city := find_city(target_city_id)
+	source_city.remove_units(unit_count)
+	target_city.add_units(unit_count)
+	if source_city.unit_count == 0:
+		source_city.owner_id = ""
+	return GameActionResult.new()
+
+
+func end_reorganization_phase(next_player_id: String) -> GameActionResult:
+	if phase != Phase.REORGANIZATION:
+		return GameActionResult.new("The reorganization phase is not in progress.")
+	if _map_definition == null or not _validate_reinforcement_map(_map_definition):
+		return GameActionResult.new("A valid map is required to begin the next turn.")
+	if find_player(next_player_id) == null:
+		return GameActionResult.new("The next player is not in this game.")
+	if next_player_id == active_player_id:
+		return GameActionResult.new("The next turn must belong to a different player.")
+
+	_start_reinforcement_turn(next_player_id)
+	return GameActionResult.new()
+
+
 func _advance_initial_reserve_placement() -> void:
 	var all_reserves_placed := true
 	for player: GamePlayer in players:
@@ -335,6 +419,35 @@ func _get_reinforcement_reachable_city_ids(player_id: String) -> Dictionary:
 			reachable_city_ids[neighbor_city_id] = true
 			city_ids_to_visit.append(neighbor_city_id)
 	return reachable_city_ids
+
+
+func _has_controlled_route(first_city_id: String, second_city_id: String) -> bool:
+	if _map_definition == null:
+		return false
+
+	var visited_city_ids: Dictionary = {first_city_id: true}
+	var city_ids_to_visit: Array[String] = [first_city_id]
+	var visit_index := 0
+	while visit_index < city_ids_to_visit.size():
+		var current_city_id := city_ids_to_visit[visit_index]
+		visit_index += 1
+		for connection: MapConnection in _map_definition.connections:
+			var neighbor_city_id := ""
+			if connection.from_city_id == current_city_id:
+				neighbor_city_id = connection.to_city_id
+			elif connection.to_city_id == current_city_id:
+				neighbor_city_id = connection.from_city_id
+			if neighbor_city_id.is_empty() or visited_city_ids.has(neighbor_city_id):
+				continue
+
+			var neighbor_city := find_city(neighbor_city_id)
+			if neighbor_city.owner_id != active_player_id or neighbor_city.unit_count <= 0:
+				continue
+			if neighbor_city_id == second_city_id:
+				return true
+			visited_city_ids[neighbor_city_id] = true
+			city_ids_to_visit.append(neighbor_city_id)
+	return false
 
 
 func _are_cities_connected(first_city_id: String, second_city_id: String) -> bool:

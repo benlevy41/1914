@@ -167,4 +167,29 @@ text = "Attack"
 layout_mode = 2
 text = "End attack phase"
 
+[node name="ReorganizationPanel" type="VBoxContainer" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1037824401]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ReorganizationSelection" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel" unique_id=1671130238]
+layout_mode = 2
+text = "Select a source city, then a destination."
+autowrap_mode = 2
+
+[node name="ReorganizationCommitment" type="SpinBox" parent="MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel" unique_id=1645592394]
+layout_mode = 2
+min_value = 1.0
+value = 1.0
+prefix = "Units to move: "
+
+[node name="MoveUnits" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel" unique_id=1640021303]
+layout_mode = 2
+text = "Move units"
+disabled = true
+
+[node name="EndReorganization" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel" unique_id=1427119367]
+layout_mode = 2
+text = "End reorganization"
+
 [node name="Board" parent="MarginContainer/Content/MainLayout" unique_id=261282090 instance=ExtResource("2_board_view")]

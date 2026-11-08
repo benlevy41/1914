@@ -7,8 +7,10 @@ const SCENE_TREE_TESTS: Array[String] = [
 	"res://tests/unit/test_game_setup.gd",
 	"res://tests/unit/test_game_state.gd",
 	"res://tests/unit/test_initial_reserve_placement.gd",
+	"res://tests/unit/test_reorganization.gd",
 	"res://tests/unit/test_reinforcement_placement.gd",
 	"res://tests/integration/test_new_game_initialization.gd",
+	"res://tests/integration/test_turn_progression.gd",
 ]
 const PRESENTATION_TEST_SCENE := "res://tests/integration/test_main_screen_runner.tscn"
 

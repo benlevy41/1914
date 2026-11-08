@@ -52,6 +52,18 @@ func _run_test() -> void:
 	var attack_result: Label = main_screen.get_node(
 		"MarginContainer/Content/MainLayout/Sidebar/AttackPanel/AttackResult"
 	)
+	var reorganization_panel: VBoxContainer = main_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel"
+	)
+	var reorganization_commitment: SpinBox = main_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel/ReorganizationCommitment"
+	)
+	var move_units_button: Button = main_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel/MoveUnits"
+	)
+	var end_reorganization_button: Button = main_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel/EndReorganization"
+	)
 	var board: BoardView = main_screen.get_node("MarginContainer/Content/MainLayout/Board")
 
 	_expect(
@@ -244,11 +256,23 @@ func _run_test() -> void:
 		"Rejecting an enemy attack source should explain the selection rule."
 	)
 	var defending_city := game_state.find_city("saarbrucken")
-	defending_city.owner_id = "allies"
+	defending_city.owner_id = "german_empire"
 	defending_city.unit_count = 1
 	board.refresh_state(game_state)
 	var saarbrucken_marker: BoardCityMarker = board.get_node("CityMarker_saarbrucken")
 	koblenz_marker.emit_signal("pressed")
+	saarbrucken_marker.emit_signal("pressed")
+	_expect(
+		(main_screen.get("_attack_target_city_id") as String).is_empty(),
+		"An active player's city cannot be selected as an attack target."
+	)
+	_expect(
+		turn_status.text.contains("already controlled by the active player"),
+		"Rejecting an owned attack target should explain why it cannot be selected."
+	)
+	defending_city.owner_id = "allies"
+	defending_city.unit_count = 1
+	board.refresh_state(game_state)
 	saarbrucken_marker.emit_signal("pressed")
 	attack_action_button.emit_signal("pressed")
 	_expect(
@@ -265,14 +289,51 @@ func _run_test() -> void:
 		game_state.phase == GameState.Phase.ATTACK,
 		"Combat should remain in the active player's attack phase."
 	)
+	var koblenz_city := game_state.find_city("koblenz")
+	var luxembourg_city := game_state.find_city("luxembourg")
+	luxembourg_city.owner_id = "german_empire"
+	luxembourg_city.unit_count = 1
+	board.refresh_state(game_state)
 	end_attack_button.emit_signal("pressed")
 	_expect(
 		game_state.phase == GameState.Phase.REORGANIZATION,
-		"Ending attacks should stop at the unimplemented reorganization phase."
+		"Ending attacks should begin reorganization."
 	)
 	_expect(
-		turn_status.text == "Attack phase complete. Reorganization is not implemented yet.",
-		"The screen should make the reorganization boundary explicit."
+		reorganization_panel.visible,
+		"Reorganization controls should be visible during the reorganization phase."
+	)
+	var koblenz_units_before_move: int = koblenz_city.unit_count
+	koblenz_marker.emit_signal("pressed")
+	var luxembourg_marker: BoardCityMarker = board.get_node("CityMarker_luxembourg")
+	luxembourg_marker.emit_signal("pressed")
+	_expect(
+		not move_units_button.disabled,
+		"A legal route should enable the unit transfer action."
+	)
+	reorganization_commitment.value = 1
+	move_units_button.emit_signal("pressed")
+	_expect(
+		koblenz_city.unit_count == koblenz_units_before_move - 1
+		and luxembourg_city.unit_count == 2,
+		"Moving units should update both city garrisons."
+	)
+	luxembourg_marker.emit_signal("pressed")
+	koblenz_marker.emit_signal("pressed")
+	move_units_button.emit_signal("pressed")
+	_expect(
+		luxembourg_city.unit_count == 1,
+		"Players should be able to make multiple transfers during reorganization."
+	)
+	end_reorganization_button.emit_signal("pressed")
+	_expect(
+		game_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT
+		and game_state.active_player_id == "allies",
+		"Ending reorganization should begin the opposing player's reinforcement phase."
+	)
+	_expect(
+		turn_status.text == "Ada's reinforcement phase - 3 units remaining.",
+		"The next player's reinforcement phase should display the correct unit count."
 	)
 
 	get_tree().root.remove_child(main_screen)
