@@ -185,8 +185,8 @@ prefix = "Units to move: "
 
 [node name="MoveUnits" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel" unique_id=1640021303]
 layout_mode = 2
-text = "Move units"
 disabled = true
+text = "Move units"
 
 [node name="EndReorganization" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel" unique_id=1427119367]
 layout_mode = 2

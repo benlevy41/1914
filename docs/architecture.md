@@ -447,6 +447,10 @@ However, the ability to test domain and application behavior must not depend on 
 - New errors or warnings should not be introduced without explanation.
 - Developers and agents should report which tests were run and identify any failures or limitations.
 
+### 8.5 Test Runner Registration
+
+The consolidated runner in `tests/run_tests.gd` explicitly registers SceneTree test scripts in `SCENE_TREE_TESTS` and runs the presentation test scene specified by `PRESENTATION_TEST_SCENE`. New tests must be registered in the appropriate place to run as part of the consolidated test suite.
+
 The specific testing framework remains an implementation decision.
 
 ## 9. Architectural Decisions and Unresolved Questions

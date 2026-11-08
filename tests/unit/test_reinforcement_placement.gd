@@ -88,7 +88,7 @@ func _test_legal_and_rejected_placements() -> void:
 	_expect(end_attack_result.succeeded(), "The active player should be able to end attacks.")
 	_expect(
 		state.phase == GameState.Phase.REORGANIZATION,
-		"Ending the attack phase should pause before the unimplemented reorganization phase."
+		"Ending the attack phase should begin the reorganization phase."
 	)
 
 

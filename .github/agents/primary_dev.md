@@ -148,4 +148,4 @@ You MAY:
 - Make ordinary implementation decisions within approved requirements.
 - Recommend updates to documentation when implementation reveals a meaningful discrepancy.
 
-When implementation reveals that an architectural decision may need to change, stop short of making the broader change and present the issue and recommendation to the project owner.
+When implementation reveals that an architectural decision may need to change, stop short of making the broader change and present the issue and recommendation to the project owner. Do not modify docs/architecture.md, docs/game_rules.md, or docs/visual_design.md without the project owner’s explicit approval. If a task appears to require changes to one of these documents, explain the issue and propose options before editing. Treat decisions affecting these documents as requiring team input, with the project owner retaining final authority.
