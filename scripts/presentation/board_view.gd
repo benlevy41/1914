@@ -2,6 +2,7 @@ class_name BoardView
 extends Control
 
 signal city_selected(city_id: String)
+signal city_context_requested(city_id: String, screen_position: Vector2)
 
 const CityMarkerScene = preload("res://scenes/board_city_marker.tscn")
 
@@ -44,6 +45,7 @@ func configure(map_definition: GameMapDefinition, game_state: GameState) -> void
 		var marker := CityMarkerScene.instantiate() as BoardCityMarker
 		marker.name = "CityMarker_%s" % city_definition.id
 		marker.pressed.connect(_on_marker_pressed.bind(city_definition.id))
+		marker.gui_input.connect(_on_marker_gui_input.bind(city_definition.id))
 		add_child(marker)
 		_markers[city_definition.id] = marker
 
@@ -86,6 +88,14 @@ func refresh_state(game_state: GameState) -> void:
 
 func get_selected_city_id() -> String:
 	return _selected_city_id
+
+
+func get_city_id_at_position(global_position: Vector2) -> String:
+	for city_id: String in _markers:
+		var marker: BoardCityMarker = _markers[city_id]
+		if marker.get_global_rect().has_point(global_position):
+			return city_id
+	return ""
 
 
 func clear_selection() -> void:
@@ -144,3 +154,14 @@ func _on_marker_pressed(city_id: String) -> void:
 		var marker: BoardCityMarker = _markers[marker_id]
 		marker.button_pressed = marker_id == city_id
 	city_selected.emit(city_id)
+
+
+func _on_marker_gui_input(event: InputEvent, city_id: String) -> void:
+	if (
+		event is InputEventMouseButton
+		and event.button_index == MOUSE_BUTTON_RIGHT
+		and event.pressed
+	):
+		var marker := _markers[city_id] as BoardCityMarker
+		marker.accept_event()
+		city_context_requested.emit(city_id, event.global_position)

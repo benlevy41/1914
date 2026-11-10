@@ -6,11 +6,13 @@ const CombatServiceScript = preload("res://scripts/domain/combat_service.gd")
 
 const QUICK_START_ALLIES_NAME := "Joffre"
 const QUICK_START_GERMAN_NAME := "Moltke"
+const DEV_MODE_UNAVAILABLE_MESSAGE := "Developer mode is only available in debug builds."
 
 var _active_game_state: GameState
 var _map_definition: GameMapDefinition
 var _random_generator: RandomNumberGenerator
 var _combat_service: CombatService
+var _is_dev_mode_active: bool = false
 
 
 func _init(random_generator: RandomNumberGenerator) -> void:
@@ -23,6 +25,45 @@ func get_map_definition() -> GameMapDefinition:
 	return _map_definition
 
 
+func can_start_dev_mode() -> bool:
+	return OS.is_debug_build()
+
+
+func is_dev_mode_active() -> bool:
+	return _is_dev_mode_active
+
+
+func change_city_owner_for_development(city_id: String) -> GameActionResult:
+	var authorization_result := _validate_development_operation()
+	if not authorization_result.succeeded():
+		return authorization_result
+	return _active_game_state.change_city_owner_for_development(city_id)
+
+
+func add_units_for_development(city_id: String, amount: int) -> GameActionResult:
+	var authorization_result := _validate_development_operation()
+	if not authorization_result.succeeded():
+		return authorization_result
+	return _active_game_state.add_units_for_development(city_id, amount)
+
+
+func remove_units_for_development(city_id: String, amount: int) -> GameActionResult:
+	var authorization_result := _validate_development_operation()
+	if not authorization_result.succeeded():
+		return authorization_result
+	return _active_game_state.remove_units_for_development(city_id, amount)
+
+
+func _validate_development_operation() -> GameActionResult:
+	if not can_start_dev_mode():
+		return GameActionResult.new(DEV_MODE_UNAVAILABLE_MESSAGE)
+	if not _is_dev_mode_active:
+		return GameActionResult.new("Start a dev-mode game before using developer tools.")
+	if _active_game_state == null:
+		return GameActionResult.new("Start a game before using developer tools.")
+	return GameActionResult.new()
+
+
 func start_new_game(allies_name: String, german_empire_name: String) -> GameStartResult:
 	var trimmed_allies_name := allies_name.strip_edges()
 	var trimmed_german_empire_name := german_empire_name.strip_edges()
@@ -31,6 +72,7 @@ func start_new_game(allies_name: String, german_empire_name: String) -> GameStar
 	if trimmed_german_empire_name.is_empty():
 		return GameStartResult.new(null, "Enter a name for the German Empire leader.")
 
+	_is_dev_mode_active = false
 	var allies := GamePlayer.new(
 		GameSetupScript.ALLIES_ID,
 		trimmed_allies_name,
@@ -48,6 +90,16 @@ func start_new_game(allies_name: String, german_empire_name: String) -> GameStar
 		_random_generator
 	)
 	return GameStartResult.new(_active_game_state)
+
+
+func start_dev_mode_game() -> GameStartResult:
+	if not can_start_dev_mode():
+		return GameStartResult.new(null, DEV_MODE_UNAVAILABLE_MESSAGE)
+
+	var result := start_quick_game()
+	if result.succeeded():
+		_is_dev_mode_active = true
+	return result
 
 
 func start_quick_game() -> GameStartResult:

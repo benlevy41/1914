@@ -10,6 +10,7 @@ enum Phase {
 }
 
 const CITIES_PER_REINFORCEMENT := 5
+const MAX_DEV_GARRISON_SIZE := 9007199254740991
 
 var players: Array[GamePlayer]
 var cities: Array[GameCity]
@@ -55,6 +56,87 @@ func find_city(city_id: String) -> GameCity:
 		if city.id == city_id:
 			return city
 	return null
+
+
+func change_city_owner_for_development(city_id: String) -> GameActionResult:
+	var city := find_city(city_id)
+	if city == null:
+		return GameActionResult.new("That city is not on the map.")
+	if city.owner_id.is_empty() or city.unit_count <= 0:
+		return GameActionResult.new("An unoccupied city has no owner to change.")
+	if players.size() != 2:
+		return GameActionResult.new("Changing city ownership requires exactly two players.")
+
+	var current_owner := find_player(city.owner_id)
+	if current_owner == null:
+		return GameActionResult.new("The city owner is not in this game.")
+	var other_player: GamePlayer
+	for player: GamePlayer in players:
+		if player.id != current_owner.id:
+			other_player = player
+			break
+	if other_player == null:
+		return GameActionResult.new("The other player could not be found.")
+
+	city.assign_owner(other_player.id)
+	return GameActionResult.new()
+
+
+func add_units_for_development(city_id: String, amount: int) -> GameActionResult:
+	var city := find_city(city_id)
+	if city == null:
+		return GameActionResult.new("That city is not on the map.")
+	var owner_id := city.owner_id if not city.owner_id.is_empty() else city.last_owner_id
+	if owner_id.is_empty() or find_player(owner_id) == null:
+		return GameActionResult.new(
+			"Developer unit additions require a current or remembered owner."
+		)
+	if not city.owner_id.is_empty() and city.unit_count <= 0:
+		return GameActionResult.new("The city's current garrison is invalid.")
+	if amount <= 0:
+		return GameActionResult.new("Choose a positive number of units to add.")
+	if city.unit_count > MAX_DEV_GARRISON_SIZE:
+		return GameActionResult.new("The city's garrison is already above the supported limit.")
+	if amount > MAX_DEV_GARRISON_SIZE - city.unit_count:
+		return GameActionResult.new("The city's garrison cannot exceed the supported limit.")
+
+	if city.owner_id.is_empty() and not city.restore_last_owner():
+		return GameActionResult.new("The city's previous owner could not be restored.")
+	city.add_units(amount)
+	return GameActionResult.new()
+
+
+func remove_units_for_development(city_id: String, amount: int) -> GameActionResult:
+	var city := _find_occupied_development_city(city_id)
+	if city == null:
+		return GameActionResult.new(_development_city_error(city_id))
+	if amount <= 0:
+		return GameActionResult.new("Choose a positive number of units to remove.")
+	if amount > city.unit_count:
+		return GameActionResult.new("Cannot remove more units than the city garrison contains.")
+
+	city.remove_units(amount)
+	if city.unit_count == 0:
+		city.leave_unoccupied()
+	return GameActionResult.new()
+
+
+func _find_occupied_development_city(city_id: String) -> GameCity:
+	var city := find_city(city_id)
+	if city == null or city.owner_id.is_empty() or city.unit_count <= 0:
+		return null
+	if find_player(city.owner_id) == null:
+		return null
+	return city
+
+
+func _development_city_error(city_id: String) -> String:
+	var city := find_city(city_id)
+	if city == null:
+		return "That city is not on the map."
+	if city.owner_id.is_empty() or city.unit_count <= 0:
+		return "Developer unit changes require an occupied city."
+	return "The city owner is not in this game."
 
 
 func place_initial_reserve(city_id: String) -> GameActionResult:
@@ -219,9 +301,9 @@ func resolve_attack_round(
 	if result.defender_losses > 0:
 		defending_city.remove_units(result.defender_losses)
 	if attacking_city.unit_count == 0:
-		attacking_city.owner_id = ""
+		attacking_city.leave_unoccupied()
 	if defending_city.unit_count == 0:
-		defending_city.owner_id = ""
+		defending_city.leave_unoccupied()
 	return result
 
 
@@ -251,7 +333,7 @@ func occupy_city(
 
 	attacking_city.remove_units(unit_count)
 	target_city.add_units(unit_count)
-	target_city.owner_id = active_player_id
+	target_city.assign_owner(active_player_id)
 	return GameActionResult.new()
 
 
@@ -317,7 +399,7 @@ func move_reorganization_units(
 	source_city.remove_units(unit_count)
 	target_city.add_units(unit_count)
 	if source_city.unit_count == 0:
-		source_city.owner_id = ""
+		source_city.leave_unoccupied()
 	return GameActionResult.new()
 
 

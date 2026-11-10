@@ -1,10 +1,23 @@
 extends Control
 
 const GameApplicationScript = preload("res://scripts/application/game_application.gd")
+const CHANGE_CITY_OWNER_MENU_ITEM_ID := 1
+const ADD_UNITS_MENU_ITEM_ID := 2
+const REMOVE_UNITS_MENU_ITEM_ID := 3
+
+enum DevelopmentUnitChange {
+	ADD,
+	REMOVE,
+}
 
 var _game_application: GameApplication
 var _map_definition: GameMapDefinition
 var _game_state: GameState
+var _city_context_menu: PopupMenu
+var _unit_change_dialog: ConfirmationDialog
+var _unit_change_selector: SpinBox
+var _context_city_id: String = ""
+var _pending_unit_change: DevelopmentUnitChange
 var _allies_name: String = ""
 var _is_entering_german_name: bool = false
 var _selected_city_id: String = ""
@@ -21,6 +34,7 @@ var _displayed_phase: int = -1
 @onready var _menu_panel: VBoxContainer = $MarginContainer/Content/MenuPanel
 @onready var _custom_game_button: Button = $MarginContainer/Content/MenuPanel/CustomGame
 @onready var _quick_start_button: Button = $MarginContainer/Content/MenuPanel/QuickStart
+@onready var _dev_mode_button: Button = $MarginContainer/Content/MenuPanel/DevMode
 @onready var _menu_error: Label = $MarginContainer/Content/MenuPanel/Error
 @onready var _setup_panel: VBoxContainer = $MarginContainer/Content/SetupPanel
 @onready var _setup_prompt: Label = $MarginContainer/Content/SetupPanel/Prompt
@@ -29,6 +43,7 @@ var _displayed_phase: int = -1
 @onready var _continue_button: Button = $MarginContainer/Content/SetupPanel/Continue
 @onready var _game_panel: HBoxContainer = $MarginContainer/Content/MainLayout
 @onready var _game_status: Label = $MarginContainer/Content/GameStatus
+@onready var _dev_mode_indicator: Label = $MarginContainer/Content/DevModeIndicator
 @onready var _turn_status: Label = $MarginContainer/Content/MainLayout/Sidebar/TurnStatus
 @onready var _phase_action_button: Button = $MarginContainer/Content/MainLayout/Sidebar/PhaseAction
 @onready var _attack_panel: VBoxContainer = (
@@ -79,9 +94,32 @@ func _ready() -> void:
 	random_generator.randomize()
 	_game_application = GameApplicationScript.new(random_generator)
 	_map_definition = _game_application.get_map_definition()
+	_city_context_menu = PopupMenu.new()
+	_city_context_menu.name = "CityContextMenu"
+	_city_context_menu.exclusive = false
+	_city_context_menu.id_pressed.connect(_on_city_context_menu_id_pressed)
+	add_child(_city_context_menu)
+	_unit_change_dialog = ConfirmationDialog.new()
+	_unit_change_dialog.name = "UnitChangeDialog"
+	_unit_change_dialog.title = "Developer unit change"
+	_unit_change_dialog.get_ok_button().text = "OK"
+	_unit_change_dialog.get_cancel_button().text = "Cancel"
+	_unit_change_dialog.confirmed.connect(_on_unit_change_confirmed)
+	_unit_change_selector = SpinBox.new()
+	_unit_change_selector.name = "UnitCount"
+	_unit_change_selector.min_value = 1
+	_unit_change_selector.step = 1
+	_unit_change_selector.rounded = true
+	_unit_change_selector.editable = true
+	_unit_change_selector.focus_mode = Control.FOCUS_ALL
+	_unit_change_selector.select_all_on_focus = true
+	_unit_change_selector.suffix = " units"
+	_unit_change_dialog.add_child(_unit_change_selector)
+	add_child(_unit_change_dialog)
 	_setup_prompt.text = "Who will lead the Allied forces?"
 	_custom_game_button.pressed.connect(_on_custom_game_pressed)
 	_quick_start_button.pressed.connect(_on_quick_start_pressed)
+	_dev_mode_button.pressed.connect(_on_dev_mode_pressed)
 	_continue_button.pressed.connect(_on_continue_pressed)
 	_leader_name_input.text_submitted.connect(_on_leader_name_submitted)
 	_phase_action_button.pressed.connect(_on_phase_action_pressed)
@@ -91,11 +129,34 @@ func _ready() -> void:
 	_end_reorganization_button.pressed.connect(_on_end_reorganization_pressed)
 	_setup_panel.hide()
 	_game_panel.hide()
+	_city_context_menu.hide()
+	_unit_change_dialog.hide()
+	_dev_mode_button.visible = _game_application.can_start_dev_mode()
+	_dev_mode_indicator.hide()
 	_attack_panel.hide()
 	_reorganization_panel.hide()
 	_setup_error.text = ""
 	_menu_error.text = ""
 	_phase_action_button.disabled = true
+
+
+func _input(event: InputEvent) -> void:
+	if (
+		_game_state == null
+		or not _game_application.is_dev_mode_active()
+		or _unit_change_dialog.visible
+		or not (event is InputEventMouseButton)
+		or event.button_index != MOUSE_BUTTON_RIGHT
+		or not event.pressed
+	):
+		return
+
+	var city_id := _board.get_city_id_at_position(event.global_position)
+	if city_id.is_empty():
+		return
+
+	_on_city_context_requested(city_id, event.global_position)
+	get_viewport().set_input_as_handled()
 
 
 func _on_custom_game_pressed() -> void:
@@ -106,6 +167,14 @@ func _on_custom_game_pressed() -> void:
 
 func _on_quick_start_pressed() -> void:
 	var result: GameStartResult = _game_application.start_quick_game()
+	if not result.succeeded():
+		_menu_error.text = result.error_message
+		return
+	_show_game(result.game_state)
+
+
+func _on_dev_mode_pressed() -> void:
+	var result: GameStartResult = _game_application.start_dev_mode_game()
 	if not result.succeeded():
 		_menu_error.text = result.error_message
 		return
@@ -150,11 +219,13 @@ func _show_game(game_state: GameState) -> void:
 	_game_state = game_state
 	_display_players()
 	_board.city_selected.connect(_on_city_selected)
+	_board.city_context_requested.connect(_on_city_context_requested)
 	_board.configure(_map_definition, _game_state)
 	_game_status.text = (
 		"Territories assigned. Each city has one infantry unit. "
 		+ "Now place the initial reserve units."
 	)
+	_dev_mode_indicator.visible = _game_application.is_dev_mode_active()
 	_update_phase_status()
 	_menu_panel.hide()
 	_setup_panel.hide()
@@ -166,6 +237,155 @@ func _display_players() -> void:
 		var player_label := Label.new()
 		player_label.text = "%s - %s" % [player.id, player.name]
 		_player_list.add_child(player_label)
+
+
+func _on_city_context_requested(city_id: String, screen_position: Vector2) -> void:
+	if not _game_application.is_dev_mode_active():
+		return
+
+	var city := _game_state.find_city(city_id)
+	if city == null:
+		push_error("Cannot show a context menu for unknown city '%s'." % city_id)
+		return
+
+	_context_city_id = city_id
+	_city_context_menu.clear()
+	_city_context_menu.add_item("Change owner", CHANGE_CITY_OWNER_MENU_ITEM_ID)
+	_city_context_menu.add_item("Add units", ADD_UNITS_MENU_ITEM_ID)
+	_city_context_menu.add_item("Remove units", REMOVE_UNITS_MENU_ITEM_ID)
+	_city_context_menu.set_item_disabled(
+		_city_context_menu.get_item_index(CHANGE_CITY_OWNER_MENU_ITEM_ID),
+		city.owner_id.is_empty() or city.unit_count <= 0
+	)
+	var add_owner_id := city.owner_id if not city.owner_id.is_empty() else city.last_owner_id
+	var add_unavailable := (
+		add_owner_id.is_empty()
+		or _game_state.find_player(add_owner_id) == null
+		or city.unit_count >= GameState.MAX_DEV_GARRISON_SIZE
+		or (not city.owner_id.is_empty() and city.unit_count <= 0)
+	)
+	_city_context_menu.set_item_disabled(
+		_city_context_menu.get_item_index(ADD_UNITS_MENU_ITEM_ID),
+		add_unavailable
+	)
+	var remove_unavailable := (
+		city.owner_id.is_empty()
+		or city.unit_count <= 0
+		or _game_state.find_player(city.owner_id) == null
+	)
+	_city_context_menu.set_item_disabled(
+		_city_context_menu.get_item_index(REMOVE_UNITS_MENU_ITEM_ID),
+		remove_unavailable
+	)
+	if _city_context_menu.visible:
+		_city_context_menu.hide()
+	_city_context_menu.popup(
+		Rect2i(Vector2i(screen_position), Vector2i.ZERO)
+	)
+
+
+func _on_city_context_menu_id_pressed(item_id: int) -> void:
+	if _context_city_id.is_empty():
+		push_error("Cannot use a city context-menu action without a city.")
+		return
+	if item_id == ADD_UNITS_MENU_ITEM_ID:
+		_open_unit_change_dialog(DevelopmentUnitChange.ADD)
+		return
+	if item_id == REMOVE_UNITS_MENU_ITEM_ID:
+		_open_unit_change_dialog(DevelopmentUnitChange.REMOVE)
+		return
+	if item_id != CHANGE_CITY_OWNER_MENU_ITEM_ID:
+		return
+
+	var city_definition := _map_definition.find_city(_context_city_id)
+	var result := _game_application.change_city_owner_for_development(_context_city_id)
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		return
+
+	_board.refresh_state(_game_state)
+	if _selected_city_id == _context_city_id:
+		_on_city_selected(_selected_city_id)
+	if city_definition != null:
+		var city := _game_state.find_city(_context_city_id)
+		var owner := _game_state.find_player(city.owner_id) if city != null else null
+		if owner != null:
+			_turn_status.text = "%s is now owned by %s." % [city_definition.name, owner.name]
+
+
+func _open_unit_change_dialog(change: DevelopmentUnitChange) -> void:
+	var city := _game_state.find_city(_context_city_id)
+	if city == null:
+		push_error("Cannot change units for unknown city '%s'." % _context_city_id)
+		return
+	var owner_id := city.owner_id if not city.owner_id.is_empty() else city.last_owner_id
+	if change == DevelopmentUnitChange.REMOVE and (
+		city.owner_id.is_empty() or city.unit_count <= 0
+	):
+		_turn_status.text = "Developer unit changes require an occupied city."
+		return
+	var owner := _game_state.find_player(owner_id)
+	if owner == null:
+		_turn_status.text = "The city owner is not in this game."
+		return
+
+	_pending_unit_change = change
+	var city_name := _city_display_name(_context_city_id)
+	if change == DevelopmentUnitChange.ADD:
+		_unit_change_dialog.dialog_text = "Add units to %s:" % city_name
+		if city.owner_id.is_empty():
+			_unit_change_dialog.dialog_text += " Reoccupies for %s." % owner.name
+		_unit_change_selector.max_value = (
+			GameState.MAX_DEV_GARRISON_SIZE - city.unit_count
+		)
+		if _unit_change_selector.max_value < 1:
+			_turn_status.text = "The city's garrison is already at the supported limit."
+			return
+	else:
+		_unit_change_dialog.dialog_text = "Remove units from %s:" % city_name
+		_unit_change_selector.max_value = city.unit_count
+	_unit_change_selector.value = 1
+	_unit_change_dialog.popup_centered(Vector2i(360, 160))
+	_unit_change_selector.grab_focus()
+
+
+func _on_unit_change_confirmed() -> void:
+	if _context_city_id.is_empty():
+		push_error("Cannot apply a unit change without a context-menu city.")
+		return
+
+	var city_definition := _map_definition.find_city(_context_city_id)
+	var unit_count := int(_unit_change_selector.value)
+	var result: GameActionResult
+	if _pending_unit_change == DevelopmentUnitChange.ADD:
+		result = _game_application.add_units_for_development(
+			_context_city_id,
+			unit_count
+		)
+	else:
+		result = _game_application.remove_units_for_development(
+			_context_city_id,
+			unit_count
+		)
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		return
+
+	_board.refresh_state(_game_state)
+	if _selected_city_id == _context_city_id:
+		_on_city_selected(_selected_city_id)
+	if city_definition != null:
+		var city := _game_state.find_city(_context_city_id)
+		var action := (
+			"Added %d units to %s."
+			% [unit_count, city_definition.name]
+			if _pending_unit_change == DevelopmentUnitChange.ADD
+			else "Removed %d units from %s."
+			% [unit_count, city_definition.name]
+		)
+		if city != null and city.unit_count == 0:
+			action += " The city is now unoccupied."
+		_turn_status.text = action
 
 
 func _on_city_selected(city_id: String) -> void:

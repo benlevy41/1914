@@ -118,6 +118,7 @@ func _initialize() -> void:
 	)
 
 	_test_quick_start_is_deterministic()
+	_test_dev_mode_uses_quick_start()
 
 	if _failures == 0:
 		print("New game initialization integration tests passed.")
@@ -176,6 +177,120 @@ func _test_quick_start_is_deterministic() -> void:
 	_expect(total_units == 42, "Quick start should place exactly ten reserve units.")
 	_expect(allies_units == 21, "Quick start should place five reserves for the Allies.")
 	_expect(german_units == 21, "Quick start should place five reserves for Germany.")
+
+
+func _test_dev_mode_uses_quick_start() -> void:
+	var dev_random_generator := RandomNumberGenerator.new()
+	dev_random_generator.seed = 3141
+	var dev_application: GameApplication = GameApplicationScript.new(dev_random_generator)
+	var unauthorized_result := dev_application.change_city_owner_for_development("paris")
+	_expect(
+		not unauthorized_result.succeeded(),
+		"Developer ownership changes must be rejected before starting dev mode."
+	)
+	_expect(
+		not dev_application.add_units_for_development("paris", 1).succeeded(),
+		"Developer unit additions must be rejected before starting dev mode."
+	)
+	_expect(
+		not dev_application.remove_units_for_development("paris", 1).succeeded(),
+		"Developer unit removals must be rejected before starting dev mode."
+	)
+	_expect(
+		dev_application.can_start_dev_mode() == OS.is_debug_build(),
+		"Dev-mode availability should follow the current build's debug status."
+	)
+	var dev_result: GameStartResult = dev_application.start_dev_mode_game()
+	if not OS.is_debug_build():
+		_expect(not dev_result.succeeded(), "Release builds must reject developer-mode startup.")
+		_expect(
+			not dev_application.is_dev_mode_active(),
+			"Rejected startup must not activate developer mode."
+		)
+		return
+
+	_expect(dev_result.succeeded(), "Debug builds should allow developer-mode startup.")
+	if not dev_result.succeeded():
+		return
+	_expect(dev_application.is_dev_mode_active(), "Successful dev startup should activate dev mode.")
+
+	var quick_random_generator := RandomNumberGenerator.new()
+	quick_random_generator.seed = 3141
+	var quick_application: GameApplication = GameApplicationScript.new(quick_random_generator)
+	var quick_result: GameStartResult = quick_application.start_quick_game()
+	_expect(quick_result.succeeded(), "Quick start should succeed for comparison.")
+	if not quick_result.succeeded():
+		return
+
+	var dev_state := dev_result.game_state
+	var quick_state := quick_result.game_state
+	_expect(
+		dev_state.phase == quick_state.phase
+		and dev_state.active_player_id == quick_state.active_player_id,
+		"Dev mode should use the same starting phase and player as quick start."
+	)
+	_expect(
+		dev_state.players[0].name == quick_state.players[0].name
+		and dev_state.players[1].name == quick_state.players[1].name,
+		"Dev mode should use the same players as quick start."
+	)
+	for city: GameCity in dev_state.cities:
+		var quick_city := quick_state.find_city(city.id)
+		_expect(
+			city.owner_id == quick_city.owner_id and city.unit_count == quick_city.unit_count,
+			"Dev mode should use the same initial city state as quick start."
+		)
+
+	var paris := dev_state.find_city("paris")
+	var original_paris_units := paris.unit_count
+	var ownership_result := dev_application.change_city_owner_for_development("paris")
+	_expect(
+		ownership_result.succeeded(),
+		"Developer mode should allow changing ownership through the application."
+	)
+	_expect(
+		paris.owner_id == "german_empire",
+		"Developer ownership changes should assign the other player's ID."
+	)
+	_expect(
+		paris.unit_count == original_paris_units,
+		"Developer ownership changes must preserve garrison size."
+	)
+	var add_units_result := dev_application.add_units_for_development("paris", 3)
+	_expect(add_units_result.succeeded(), "Dev mode should add units through the application.")
+	_expect(
+		paris.unit_count == original_paris_units + 3,
+		"Application unit addition should update the authoritative garrison."
+	)
+	var remove_units_result := dev_application.remove_units_for_development("paris", 2)
+	_expect(
+		remove_units_result.succeeded(),
+		"Dev mode should remove units through the application."
+	)
+	_expect(
+		paris.unit_count == original_paris_units + 1,
+		"Application unit removal should update the authoritative garrison."
+	)
+
+	var normal_start_result := dev_application.start_quick_game()
+	_expect(normal_start_result.succeeded(), "Normal quick start should remain available.")
+	_expect(
+		not dev_application.is_dev_mode_active(),
+		"Starting a normal game should deactivate developer mode."
+	)
+	var disabled_result := dev_application.change_city_owner_for_development("paris")
+	_expect(
+		not disabled_result.succeeded(),
+		"Developer ownership changes must be rejected in a normal game."
+	)
+	_expect(
+		not dev_application.add_units_for_development("paris", 1).succeeded(),
+		"Developer unit additions must be rejected in a normal game."
+	)
+	_expect(
+		not dev_application.remove_units_for_development("paris", 1).succeeded(),
+		"Developer unit removals must be rejected in a normal game."
+	)
 
 
 func _expect(condition: bool, message: String) -> void:
