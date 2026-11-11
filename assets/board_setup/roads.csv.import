@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://cactbwp83es0v"
+
+[deps]
+
+files=["res://assets/board_setup/roads.second.translation", "res://assets/board_setup/roads.road.translation"]
+
+source_file="res://assets/board_setup/roads.csv"
+dest_files=["res://assets/board_setup/roads.second.translation", "res://assets/board_setup/roads.road.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

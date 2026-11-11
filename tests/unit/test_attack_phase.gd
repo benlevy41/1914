@@ -117,6 +117,10 @@ func _test_resolving_and_occupying() -> void:
 		state.find_city("german_target").owner_id.is_empty(),
 		"A defeated city should become unoccupied until the attacker moves in."
 	)
+	_expect(
+		state.find_city("german_target").last_owner_id == "german_empire",
+		"Combat losses should preserve the last owner of an unoccupied city."
+	)
 	var source_units: int = state.find_city("allies_home").unit_count
 	var occupation_result: GameActionResult = state.occupy_city(
 		"allies_home",
@@ -127,6 +131,10 @@ func _test_resolving_and_occupying() -> void:
 	_expect(
 		state.find_city("german_target").owner_id == "allies",
 		"Moving units into the target should change its ownership."
+	)
+	_expect(
+		state.find_city("german_target").last_owner_id == "allies",
+		"Occupying a city should update its remembered owner."
 	)
 	_expect(
 		state.find_city("allies_home").unit_count == source_units - 1,
@@ -154,6 +162,10 @@ func _test_attacker_elimination() -> void:
 	_expect(
 		state.find_city("allies_home").owner_id.is_empty(),
 		"An eliminated attacking garrison should become unoccupied."
+	)
+	_expect(
+		state.find_city("allies_home").last_owner_id == "allies",
+		"An eliminated garrison should preserve its previous owner."
 	)
 
 

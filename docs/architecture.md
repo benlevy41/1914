@@ -120,6 +120,14 @@ The mechanism that generates or transports a decision should not independently e
 
 The exact representation of player decision sources, their interfaces, and their lifecycle remain implementation decisions.
 
+#### Development-Only Features
+
+Developer tools must be available only in debug builds. The application layer must enforce this restriction for both starting a developer-mode game and invoking developer-only operations; hiding presentation controls is not sufficient access control.
+
+Production release exports must have Godot's **Debug** export option disabled. Developer mode should reuse the regular game-start and gameplay workflows. Developer-only state changes must use explicit domain operations invoked through the application layer, and remain separate from normal gameplay operations so they can extend the game without replacing or duplicating them.
+
+Cities keep their last assigned owner separately from current ownership. Only current ownership determines control; developer-mode unit additions may restore the remembered owner when reoccupying a city, while unoccupied cities remain uncontrolled.
+
 ### 3.3 Domain Layer
 
 **Responsibility:** Represent the game and enforce its rules.

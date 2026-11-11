@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://bovd2nbaqsib3"
+
+[deps]
+
+files=["res://assets/board_setup/cities.Lat.translation", "res://assets/board_setup/cities.Lon.translation", "res://assets/board_setup/cities.Value.translation"]
+
+source_file="res://assets/board_setup/cities.csv"
+dest_files=["res://assets/board_setup/cities.Lat.translation", "res://assets/board_setup/cities.Lon.translation", "res://assets/board_setup/cities.Value.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true
