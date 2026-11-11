@@ -10,7 +10,7 @@ func _initialize() -> void:
 	var random_generator := RandomNumberGenerator.new()
 	random_generator.seed = 1914
 	var application: GameApplication = GameApplicationScript.new(random_generator)
-	var map_definition: GameMapDefinition = application.get_map_definition()
+	var map_definition: GameMapDefinition = application.map_definition
 	var premature_placement: GameActionResult = application.place_initial_reserve("paris")
 	_expect(
 		not premature_placement.succeeded(),
@@ -197,7 +197,7 @@ func _test_dev_mode_uses_quick_start() -> void:
 		"Developer unit removals must be rejected before starting dev mode."
 	)
 	_expect(
-		dev_application.can_start_dev_mode() == OS.is_debug_build(),
+		dev_application.can_start_dev_mode == OS.is_debug_build(),
 		"Dev-mode availability should follow the current build's debug status."
 	)
 	var dev_result: GameStartResult = dev_application.start_dev_mode_game()

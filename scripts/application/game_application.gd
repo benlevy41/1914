@@ -8,6 +8,14 @@ const QUICK_START_ALLIES_NAME := "Joffre"
 const QUICK_START_GERMAN_NAME := "Moltke"
 const DEV_MODE_UNAVAILABLE_MESSAGE := "Developer mode is only available in debug builds."
 
+var map_definition: GameMapDefinition:
+	get:
+		return _map_definition
+
+var can_start_dev_mode: bool:
+	get:
+		return OS.is_debug_build()
+
 var _active_game_state: GameState
 var _map_definition: GameMapDefinition
 var _random_generator: RandomNumberGenerator
@@ -19,14 +27,6 @@ func _init(random_generator: RandomNumberGenerator) -> void:
 	_random_generator = random_generator
 	_map_definition = GameMapDefinition.create_western_front()
 	_combat_service = CombatServiceScript.new(random_generator)
-
-
-func get_map_definition() -> GameMapDefinition:
-	return _map_definition
-
-
-func can_start_dev_mode() -> bool:
-	return OS.is_debug_build()
 
 
 func is_dev_mode_active() -> bool:
@@ -55,7 +55,7 @@ func remove_units_for_development(city_id: String, amount: int) -> GameActionRes
 
 
 func _validate_development_operation() -> GameActionResult:
-	if not can_start_dev_mode():
+	if not can_start_dev_mode:
 		return GameActionResult.new(DEV_MODE_UNAVAILABLE_MESSAGE)
 	if not _is_dev_mode_active:
 		return GameActionResult.new("Start a dev-mode game before using developer tools.")
@@ -93,7 +93,7 @@ func start_new_game(allies_name: String, german_empire_name: String) -> GameStar
 
 
 func start_dev_mode_game() -> GameStartResult:
-	if not can_start_dev_mode():
+	if not can_start_dev_mode:
 		return GameStartResult.new(null, DEV_MODE_UNAVAILABLE_MESSAGE)
 
 	var result := start_quick_game()

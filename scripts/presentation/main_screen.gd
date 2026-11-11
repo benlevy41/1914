@@ -1,14 +1,14 @@
 extends Control
 
-const GameApplicationScript = preload("res://scripts/application/game_application.gd")
-const CHANGE_CITY_OWNER_MENU_ITEM_ID := 1
-const ADD_UNITS_MENU_ITEM_ID := 2
-const REMOVE_UNITS_MENU_ITEM_ID := 3
-
 enum DevelopmentUnitChange {
 	ADD,
 	REMOVE,
 }
+
+const GameApplicationScript = preload("res://scripts/application/game_application.gd")
+const CHANGE_CITY_OWNER_MENU_ITEM_ID := 1
+const ADD_UNITS_MENU_ITEM_ID := 2
+const REMOVE_UNITS_MENU_ITEM_ID := 3
 
 var _game_application: GameApplication
 var _map_definition: GameMapDefinition
@@ -93,7 +93,7 @@ func _ready() -> void:
 	var random_generator := RandomNumberGenerator.new()
 	random_generator.randomize()
 	_game_application = GameApplicationScript.new(random_generator)
-	_map_definition = _game_application.get_map_definition()
+	_map_definition = _game_application.map_definition
 	_city_context_menu = PopupMenu.new()
 	_city_context_menu.name = "CityContextMenu"
 	_city_context_menu.exclusive = false
@@ -131,7 +131,7 @@ func _ready() -> void:
 	_game_panel.hide()
 	_city_context_menu.hide()
 	_unit_change_dialog.hide()
-	_dev_mode_button.visible = _game_application.can_start_dev_mode()
+	_dev_mode_button.visible = _game_application.can_start_dev_mode
 	_dev_mode_indicator.hide()
 	_attack_panel.hide()
 	_reorganization_panel.hide()

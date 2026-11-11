@@ -593,7 +593,8 @@ func _run_test() -> void:
 		_expect(
 			not dev_mode_context_menu.is_item_disabled(1)
 			and dev_mode_context_menu.is_item_disabled(2),
-			"Add should be enabled for an unoccupied city with a remembered owner; Remove should be disabled."
+			"Add is enabled for an unoccupied city with a remembered owner; "
+			+ "Remove should be disabled."
 		)
 
 		_emit_right_click(dev_paris_marker)
