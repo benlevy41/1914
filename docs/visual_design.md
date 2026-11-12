@@ -47,15 +47,24 @@ The camera should present a consistent, fixed-angle view of the board.
 The camera is not intended to be freely navigable. Excessive camera freedom would make it harder to maintain a consistent understanding of the board and could distract from strategic decisions.
 
 Expected controls:
-- Scroll wheel: zoom in and out.
+- Scroll wheel: zoom toward the selected city, or the cursor if no city is selected.
 - WASD: pan across the board.
-- Fixed camera rotation and viewing angle.
+- Middle mouse button: hold and drag the board to pan.
+- Left-click a city: select it and show its selection marker.
+- Left-click on empty space: deselect city and cancel pending action (see ADR 0003).
+- Fixed camera rotation and viewing angle - see below and ADR 0003 for some amendments to this.
 - Reasonable zoom limits.
 - Pan boundaries that prevent the player from losing the board entirely.
 
 Camera movement should be smooth and predictable, but should not introduce unnecessary animation or visual effects.
+Navigation is suspended while a text field, context menu, or dialog is being used.
+The selected city remains the zoom target even when it is off-screen. Zoom and dragging
+respect the same camera bounds as keyboard panning.
+In developer mode, right-clicking a city opens its developer menu; right-clicking another city retargets it.
 
 The camera should use a projection and angle that preserve board readability and make city positions, connections, and unit formations easy to interpret.
+
+*Amended:* Zooming out to the full extent transitions to a top-down camera view (strategic view) that fits the entire board and zooming in again restores the angled view.  The intent is that this projection will provide sufficient detail in a 2d-like map mode (see ADR 0003).
 
 ## 4. Cities and Military Units
 
@@ -180,7 +189,7 @@ Presentation development should proceed incrementally.
 
 The first 3D implementation should include:
 - A flat 3D board.
-- A fixed-angle camera.
+- A fixed-angle camera*.
 - Scroll-wheel zoom.
 - WASD panning.
 - Individual city models.
@@ -190,6 +199,8 @@ The first 3D implementation should include:
 - Mouse-based city selection.
 - Basic visual feedback.
 - UI elements for current player, phase, and relevant actions.
+
+\* Zooming to the full extent enters a top-down "strategic" camera view - see notes in section 3.2 and ADR 0003
 
 Use simple placeholder models where necessary. The initial objective is to validate scale, readability, camera behavior, and interaction—not to produce finished artwork.
 
@@ -236,3 +247,18 @@ That agent should:
 - Test presentation changes and verify that they do not alter game rules or authoritative game state.
 
 The presentation agent may recommend visual or interaction improvements, but significant departures from this document should be discussed and approved before implementation.
+
+
+## Appendix A: User control implementation decisions
+
+The following design conventions for the user controls and information presentation have been determined during testing and development to be direction we desire the UI to take; however, future developments may indicate a better direction.  In that case we will need to examine options and determine if it is preferrable to incorporate these into a new release or if we need to develop a new version entirely.
+
+### Context menus
+
+Right clicks on cities (possibly other objects in the future) bring up a contextual menu that displays currently available options for the player to select.  These should only include options normally available in the current game phase for the current player and include actions such as "attack", "occupy city", and "reinforce".  Context menu selections may lead to other options if further information will be required.  For example, selecting "attack" from a friendly city should highlight potential target cities.  See ADR 0003 for additional detail.
+
+### Heads up display (HUD)
+
+Relevant global information for both players is displayed in a top-of-screen banner.  Information includes the current active player - represented by the respective player's flag - the number of cities each player has occupied, and the number of units each player has.  The banner also indicate the current turn phase.  Currently, game play instructions are displayed on a left-hand panel.  In future iterations this will be replaced by floating "tool tips" which can be turned off and are intended as prompts for new players.  Other information for future iterations may include different game modes.  The HUD is intended to be the only off-board information display - all other relevant information for players should be easily visible on the board using visual cues.  See ADR 0003 for additional details.
+
+

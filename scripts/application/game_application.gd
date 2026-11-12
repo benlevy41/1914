@@ -251,6 +251,12 @@ func place_initial_reserve(city_id: String) -> GameActionResult:
 	return result
 
 
+func validate_reinforcement(city_id: String) -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before selecting a reinforcement city.")
+	return _active_game_state.validate_reinforcement(city_id)
+
+
 func place_reinforcement(city_id: String) -> GameActionResult:
 	if _active_game_state == null:
 		return GameActionResult.new("Start a new game before placing reinforcements.")

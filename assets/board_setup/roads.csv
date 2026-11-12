@@ -5,7 +5,6 @@ albert,amiens,1
 albert,cambrai,1
 albert,la_bassee,1
 albert,saint_quentin,1
-amiens,brussels,1
 amiens,paris,1
 amiens,saint_quentin,1
 antwerp,brussels,1
@@ -20,6 +19,10 @@ cambrai,hirson,1
 cambrai,la_bassee,1
 cambrai,saint_quentin,1
 cambrai,valenciennes,1
+charleroi,maubeuge,1
+charleroi,namur,1
+charleroi,mezieres,1
+charleroi,mons,1
 ghent,ypres,1
 hasselt,liege,1
 hirson,laon,1
