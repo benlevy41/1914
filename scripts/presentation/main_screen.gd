@@ -237,8 +237,7 @@ func _refresh_game_view() -> bool:
 		push_error("The application could not provide a game view snapshot.")
 		return false
 	_game_snapshot = snapshot
-	if _board.get_child_count() > 0:
-		_board.refresh_snapshot(_game_snapshot)
+	_board.refresh_snapshot(_game_snapshot)
 	return true
 
 

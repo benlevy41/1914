@@ -21,14 +21,21 @@ func _initialize() -> void:
 		"valenciennes", "verdun", "ypres",
 	]
 	var connected_city_ids: Dictionary = {"paris": true}
+	var charleroi_neighbors: Dictionary = {
+		"maubeuge": false,
+		"namur": false,
+		"mezieres": false,
+		"mons": false,
+	}
+	var has_amiens_brussels_road := false
 	_expect(
 		map_definition is RefCounted,
 		"Map definition should be independent of the scene tree."
 	)
 	_expect(map_definition.cities.size() == 32, "The complete map should define all 32 cities.")
 	_expect(
-		map_definition.connections.size() == 59,
-		"The map should load all 59 authoritative road connections."
+		map_definition.connections.size() == 62,
+		"The map should load all 62 CSV road connections."
 	)
 	_expect(
 		map_definition.find_city("paris").name == "Paris",
@@ -76,6 +83,16 @@ func _initialize() -> void:
 			"Roads should reference a known destination city."
 		)
 		_expect(connection.road_size == 1, "The current CSV road sizes should be retained.")
+		var endpoints := [connection.from_city_id, connection.to_city_id]
+		if endpoints.has("charleroi"):
+			for neighbor: String in charleroi_neighbors:
+				if endpoints.has(neighbor):
+					charleroi_neighbors[neighbor] = true
+		if endpoints.has("amiens") and endpoints.has("brussels"):
+			has_amiens_brussels_road = true
+	for neighbor: String in charleroi_neighbors:
+		_expect(charleroi_neighbors[neighbor], "Charleroi should connect to %s." % neighbor)
+	_expect(not has_amiens_brussels_road, "Amiens should not have a direct road to Brussels.")
 	var found_new_city := true
 	while found_new_city:
 		found_new_city = false

@@ -33,8 +33,8 @@ func _initialize() -> void:
 		"The map should define all 32 cities."
 	)
 	_expect(
-		state.connections.size() == 59,
-		"The map should expose all 59 CSV-backed road connections."
+		state.connections.size() == 62,
+		"The map should expose all 62 CSV-backed road connections."
 	)
 	_expect(
 		state.find_city("hasselt") != null and state.find_city("meaux") == null,
