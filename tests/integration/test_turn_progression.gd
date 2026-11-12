@@ -15,10 +15,10 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	var state := start_result.game_state
-	_complete_current_turn(application, state)
+	var state: GameViewSnapshot = application.get_view_snapshot()
+	state = _complete_current_turn(application, state)
 	_expect(
-		state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT,
+		state.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT,
 		"The opposing player should begin reinforcement placement after reorganization."
 	)
 	_expect(
@@ -30,9 +30,9 @@ func _initialize() -> void:
 		"The next player's reinforcements should reflect their territory count."
 	)
 
-	_complete_current_turn(application, state)
+	state = _complete_current_turn(application, state)
 	_expect(
-		state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT,
+		state.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT,
 		"Turn progression should continue after both players complete a turn."
 	)
 	_expect(
@@ -45,15 +45,20 @@ func _initialize() -> void:
 	quit(1 if _failures > 0 else 0)
 
 
-func _complete_current_turn(application: GameApplication, state: GameState) -> void:
-	while state.reinforcements_remaining > 0:
-		var active_player := state.find_player(state.active_player_id)
+func _complete_current_turn(
+	application: GameApplication,
+	snapshot: GameViewSnapshot
+) -> GameViewSnapshot:
+	var reinforcements_to_place := snapshot.reinforcements_remaining
+	for _placement_index: int in reinforcements_to_place:
+		var active_player := snapshot.find_player(snapshot.active_player_id)
 		var placement_result := application.place_reinforcement(
 			active_player.center_of_gravity_city_id
 		)
 		_expect(placement_result.succeeded(), "The active player should place each reinforcement.")
 
-	if state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT:
+	var current_snapshot := application.get_view_snapshot()
+	if current_snapshot.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT:
 		var begin_attack_result := application.begin_attack_phase()
 		_expect(begin_attack_result.succeeded(), "The active player should begin attacks.")
 	var end_attack_result := application.end_attack_phase()
@@ -63,6 +68,7 @@ func _complete_current_turn(application: GameApplication, state: GameState) -> v
 		end_reorganization_result.succeeded(),
 		"The active player should finish reorganization and advance the turn."
 	)
+	return application.get_view_snapshot()
 
 
 func _expect(condition: bool, message: String) -> void:

@@ -22,6 +22,7 @@ Follow these principles when approaching implementation tasks:
 - **Work incrementally.** Prefer small, verifiable changes over large implementations that are difficult to understand or debug.
 - **Explain important decisions.** Describe why an implementation approach is appropriate, particularly when it involves unfamiliar Godot or GDScript concepts.
 - **Preserve project-owner control.** Identify decisions that exceed the scope of an approved task and obtain approval before proceeding.
+- **Preserve delineation between primary-dev and your own responsibilities.** You are responsible for implementing the underlying game logic and architecture.  Adjustments to the presentation layer should be coordinated with the primary UI development agent and the project owner/user should be notified.
 
 ## 3. Working Process
 
@@ -63,6 +64,12 @@ After each meaningful step:
 - Address errors before building additional functionality on top of them.
 
 Avoid modifying unrelated code.
+
+### Step 3a: Coordinate with the UI development agent
+
+Coordination does not imply tasking the UI development agent with work.  If a talk requires coordination, we will primarily use ADRs (Architectural Decision Records) to document the decision-making process and ensure that both agents are aligned on the implementation approach. The ADR can contain open questions and requests for input from the UI development agent or project owner.  A drafted ADR should contain a clear description of the problem and proposed solution, along with any tradeoffs or alternatives considered.  The ADR will be written in markdown format and stored in the `docs/decisions` directory.  This directory should be referenced for relevant ADRs or responses in submitted ADRs before undertaking any task that requires coordination.  The UI development agent will review the ADR and provide feedback or approval before final implementation.
+
+When submitting an ADR, inform the user/project owner so that they can review the ADR and provide feedback or approval.  The project owner will have final authority on any decisions that affect the architecture or game rules.
 
 ### Step 4: Verify
 

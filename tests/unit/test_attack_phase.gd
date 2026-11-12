@@ -215,10 +215,10 @@ func _create_state() -> GameState:
 func _begin_attack(state: GameState) -> void:
 	var map_definition: GameMapDefinition = GameMapDefinitionScript.new(
 		[
-			MapCityDefinitionScript.new("allies_home", "Allies Home", Vector2.ZERO, true),
-			MapCityDefinitionScript.new("allies_target", "Allies Target", Vector2.ZERO),
-			MapCityDefinitionScript.new("german_home", "German Home", Vector2.ZERO, true),
-			MapCityDefinitionScript.new("german_target", "German Target", Vector2.ZERO),
+			MapCityDefinitionScript.new("allies_home", "Allies Home", 0.0, 0.0, true),
+			MapCityDefinitionScript.new("allies_target", "Allies Target", 0.0, 0.0),
+			MapCityDefinitionScript.new("german_home", "German Home", 0.0, 0.0, true),
+			MapCityDefinitionScript.new("german_target", "German Target", 0.0, 0.0),
 		],
 		[
 			MapConnectionScript.new("allies_home", "german_target"),

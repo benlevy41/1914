@@ -3,17 +3,16 @@ extends Button
 
 
 func configure(
-	city_definition: MapCityDefinition,
-	city_state: GameCity,
+	city: GameViewSnapshot.CityView,
 	owner_name: String,
 	owner_color: Color
 ) -> void:
-	var city_name := city_definition.name
-	if city_definition.is_center_of_gravity:
+	var city_name := city.name
+	if city.is_center_of_gravity:
 		city_name += " (COG)"
-	var unit_label := "unit" if city_state.unit_count == 1 else "units"
-	text = "%s\n%s - %d %s" % [city_name, owner_name, city_state.unit_count, unit_label]
-	tooltip_text = city_definition.name
+	var unit_label := "unit" if city.unit_count == 1 else "units"
+	text = "%s\n%s - %d %s" % [city_name, owner_name, city.unit_count, unit_label]
+	tooltip_text = city.name
 	toggle_mode = true
 	focus_mode = Control.FOCUS_ALL
 	custom_minimum_size = Vector2(86, 48)

@@ -20,7 +20,6 @@ func _run_test() -> void:
 	var setup_panel: VBoxContainer = main_screen.get_node("MarginContainer/Content/SetupPanel")
 	var menu_panel: VBoxContainer = main_screen.get_node("MarginContainer/Content/MenuPanel")
 	var custom_game_button: Button = menu_panel.get_node("CustomGame")
-	var quick_start_button: Button = menu_panel.get_node("QuickStart")
 	var dev_mode_button: Button = menu_panel.get_node("DevMode")
 	var dev_mode_indicator: Label = main_screen.get_node(
 		"MarginContainer/Content/DevModeIndicator"
@@ -149,16 +148,45 @@ func _run_test() -> void:
 		koblenz_marker.text == "Koblenz (COG)\nOtto - 1 unit",
 		"The Koblenz marker should display its name, owner, unit count, and COG status."
 	)
-	for first_index: int in board.get_child_count():
-		var first_marker := board.get_child(first_index) as BoardCityMarker
-		var first_rect := Rect2(first_marker.position, first_marker.size)
-		for second_index: int in range(first_index + 1, board.get_child_count()):
-			var second_marker := board.get_child(second_index) as BoardCityMarker
-			var second_rect := Rect2(second_marker.position, second_marker.size)
-			_expect(
-				not first_rect.intersects(second_rect),
-				"City markers should not overlap on the schematic board."
-			)
+	var paris_projection_city := board._snapshot.find_city(
+		"paris"
+	) as GameViewSnapshot.CityView
+	var koblenz_projection_city := board._snapshot.find_city(
+		"koblenz"
+	) as GameViewSnapshot.CityView
+	var paris_position := board._city_canvas_position(
+		paris_projection_city.longitude,
+		paris_projection_city.latitude
+	)
+	var koblenz_position := board._city_canvas_position(
+		koblenz_projection_city.longitude,
+		koblenz_projection_city.latitude
+	)
+	_expect(
+		paris_position.x < koblenz_position.x and paris_position.y > koblenz_position.y,
+		"Geographic projection should place Paris southwest of Koblenz."
+	)
+	var mean_latitude := 0.0
+	for city: GameViewSnapshot.CityView in board._snapshot.cities:
+		mean_latitude += city.latitude
+	mean_latitude /= board._snapshot.cities.size()
+	var projection_origin := board._city_canvas_position(0.0, mean_latitude)
+	var one_degree_east := board._city_canvas_position(1.0, mean_latitude)
+	var one_degree_north := board._city_canvas_position(0.0, mean_latitude + 1.0)
+	_expect(
+		is_equal_approx(
+			projection_origin.distance_to(one_degree_east)
+			/ projection_origin.distance_to(one_degree_north),
+			cos(deg_to_rad(mean_latitude))
+		),
+		"Geographic projection should preserve geographic aspect ratio."
+	)
+	_expect_city_markers_do_not_overlap(board)
+	board.size = Vector2(800, 500)
+	board._layout_markers()
+	_expect_city_markers_do_not_overlap(board)
+	board.size = Vector2(1600, 1000)
+	board._layout_markers()
 
 	var allies_style := paris_marker.get_theme_stylebox("normal") as StyleBoxFlat
 	var german_style := koblenz_marker.get_theme_stylebox("normal") as StyleBoxFlat
@@ -252,7 +280,8 @@ func _run_test() -> void:
 		"Placing all reinforcements should display the attack phase."
 	)
 
-	var game_state := main_screen.get("_game_state") as GameState
+	var main_game_application := main_screen.get("_game_application") as GameApplication
+	var game_state := main_game_application._active_game_state as GameState
 	paris_marker.emit_signal("pressed")
 	_expect(
 		(main_screen.get("_attack_source_city_id") as String).is_empty(),
@@ -269,7 +298,7 @@ func _run_test() -> void:
 	var defending_city := game_state.find_city("saarbrucken")
 	defending_city.owner_id = "german_empire"
 	defending_city.unit_count = 1
-	board.refresh_state(game_state)
+	main_screen.call("_refresh_game_view")
 	var saarbrucken_marker: BoardCityMarker = board.get_node("CityMarker_saarbrucken")
 	koblenz_marker.emit_signal("pressed")
 	saarbrucken_marker.emit_signal("pressed")
@@ -283,7 +312,7 @@ func _run_test() -> void:
 	)
 	defending_city.owner_id = "allies"
 	defending_city.unit_count = 1
-	board.refresh_state(game_state)
+	main_screen.call("_refresh_game_view")
 	saarbrucken_marker.emit_signal("pressed")
 	attack_action_button.emit_signal("pressed")
 	_expect(
@@ -304,7 +333,7 @@ func _run_test() -> void:
 	var luxembourg_city := game_state.find_city("luxembourg")
 	luxembourg_city.owner_id = "german_empire"
 	luxembourg_city.unit_count = 1
-	board.refresh_state(game_state)
+	main_screen.call("_refresh_game_view")
 	end_attack_button.emit_signal("pressed")
 	_expect(
 		game_state.phase == GameState.Phase.REORGANIZATION,
@@ -360,10 +389,10 @@ func _run_test() -> void:
 	var quick_start_board: BoardView = quick_start_screen.get_node(
 		"MarginContainer/Content/MainLayout/Board"
 	)
-	var quick_start_state := quick_start_screen.get("_game_state") as GameState
+	var quick_start_state := quick_start_screen.get("_game_snapshot") as GameViewSnapshot
 	quick_start_menu.get_node("QuickStart").emit_signal("pressed")
 	await get_tree().process_frame
-	quick_start_state = quick_start_screen.get("_game_state") as GameState
+	quick_start_state = quick_start_screen.get("_game_snapshot") as GameViewSnapshot
 	_expect(quick_start_error.text.is_empty(), "Quick start should complete without setup errors.")
 	_expect(
 		quick_start_state != null,
@@ -373,11 +402,11 @@ func _run_test() -> void:
 		_expect(quick_start_state.players[0].name == "Joffre", "Quick start should use Joffre.")
 		_expect(quick_start_state.players[1].name == "Moltke", "Quick start should use Moltke.")
 		_expect(
-			quick_start_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT,
+			quick_start_state.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT,
 			"Quick start should skip manual reserve placement and enter reinforcements."
 		)
 		var total_units := 0
-		for city: GameCity in quick_start_state.cities:
+		for city: GameViewSnapshot.CityView in quick_start_state.cities:
 			total_units += city.unit_count
 			_expect(
 				city.owner_id == "allies" or city.owner_id == "german_empire",
@@ -422,13 +451,29 @@ func _run_test() -> void:
 	var dev_mode_board: BoardView = dev_mode_screen.get_node(
 		"MarginContainer/Content/MainLayout/Board"
 	)
+	var dev_mode_game_status: Label = dev_mode_screen.get_node(
+		"MarginContainer/Content/GameStatus"
+	)
+	var dev_mode_turn_status: Label = dev_mode_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/TurnStatus"
+	)
+	var dev_mode_phase_action: Button = dev_mode_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/PhaseAction"
+	)
+	var dev_mode_attack_action: Button = dev_mode_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/AttackPanel/AttackAction"
+	)
+	var dev_mode_reorganization_panel: VBoxContainer = dev_mode_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/ReorganizationPanel"
+	)
 	var dev_mode_context_menu := dev_mode_screen.get_node("CityContextMenu") as PopupMenu
 	var unit_change_dialog := dev_mode_screen.get_node("UnitChangeDialog") as ConfirmationDialog
 	var unit_count_selector := unit_change_dialog.get_node("UnitCount") as SpinBox
 	dev_mode_screen_button.emit_signal("pressed")
 	await get_tree().process_frame
 	if OS.is_debug_build():
-		var dev_mode_state := dev_mode_screen.get("_game_state") as GameState
+		var dev_application := dev_mode_screen.get("_game_application") as GameApplication
+		var dev_mode_state := dev_application._active_game_state as GameState
 		_expect(
 			dev_mode_state != null,
 			"Dev mode should start a game in debug builds."
@@ -484,10 +529,13 @@ func _run_test() -> void:
 			unit_change_dialog.dialog_text == "Add units to Paris:",
 			"The add dialog should clearly identify the action and city."
 		)
+		var max_development_garrison_size := (
+			dev_mode_screen.get("_game_snapshot") as GameViewSnapshot
+		).max_development_garrison_size
 		_expect(
 			unit_count_selector.min_value == 1
 			and unit_count_selector.max_value
-			== GameState.MAX_DEV_GARRISON_SIZE - paris.unit_count
+			== max_development_garrison_size - paris.unit_count
 			and unit_count_selector.step == 1,
 			"The add selector should use whole numbers within the safe garrison limit."
 		)
@@ -570,7 +618,7 @@ func _run_test() -> void:
 		var unoccupied_city := dev_mode_state.find_city("antwerp")
 		unoccupied_city.owner_id = ""
 		unoccupied_city.unit_count = 0
-		dev_mode_board.refresh_state(dev_mode_state)
+		dev_mode_screen.call("_refresh_game_view")
 		var unoccupied_marker: BoardCityMarker = dev_mode_board.get_node(
 			"CityMarker_antwerp"
 		)
@@ -608,9 +656,47 @@ func _run_test() -> void:
 			and dev_mode_screen.get("_context_city_id") == "antwerp",
 			"Right-clicking another city while the context menu is open should replace its target."
 		)
+
+		for city: GameCity in dev_mode_state.cities:
+			if city.owner_id == "german_empire":
+				city.leave_unoccupied()
+				city.unit_count = 0
+		var german_cog := dev_mode_state.find_city("koblenz")
+		german_cog.assign_owner("allies")
+		german_cog.unit_count = 1
+		paris.assign_owner("allies")
+		paris.unit_count = 1
+		dev_mode_screen.call("_refresh_game_view")
+		dev_mode_screen.call(
+			"_on_city_context_requested",
+			paris.id,
+			Vector2.ZERO
+		)
+		dev_mode_context_menu.emit_signal("id_pressed", 2)
+		unit_count_selector.value = 1
+		unit_change_dialog.get_ok_button().emit_signal("pressed")
+		_expect(
+			dev_mode_state.winner_id == "allies",
+			"The game should determine the winner from the domain state."
+		)
+		_expect(
+			(dev_mode_screen.get("_game_snapshot") as GameViewSnapshot).winner_id == "allies",
+			"The application snapshot should expose the winner to the presentation."
+		)
+		_expect(
+			dev_mode_turn_status.text == "Game over. Joffre wins."
+			and dev_mode_game_status.text.contains("Joffre wins"),
+			"The screen should display a clear game-over result."
+		)
+		_expect(
+			not dev_mode_phase_action.visible
+			and not dev_mode_attack_action.is_visible_in_tree()
+			and not dev_mode_reorganization_panel.visible,
+			"Gameplay controls should be hidden after the game ends."
+		)
 	else:
 		_expect(
-			dev_mode_screen.get("_game_state") == null,
+			dev_mode_screen.get("_game_snapshot") == null,
 			"Release builds must reject dev-mode startup even when invoked directly."
 		)
 		_expect(
@@ -641,3 +727,16 @@ func _expect(condition: bool, message: String) -> void:
 	if not condition:
 		_failures += 1
 		push_error(message)
+
+
+func _expect_city_markers_do_not_overlap(board: BoardView) -> void:
+	for first_index: int in board.get_child_count():
+		var first_marker := board.get_child(first_index) as BoardCityMarker
+		var first_rect := Rect2(first_marker.position, first_marker.size)
+		for second_index: int in range(first_index + 1, board.get_child_count()):
+			var second_marker := board.get_child(second_index) as BoardCityMarker
+			var second_rect := Rect2(second_marker.position, second_marker.size)
+			_expect(
+				not first_rect.intersects(second_rect),
+				"City markers should not overlap at the tested board size."
+			)

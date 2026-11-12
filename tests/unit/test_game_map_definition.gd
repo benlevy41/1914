@@ -1,20 +1,24 @@
 extends SceneTree
 
-const MapCityDefinitionScript = preload("res://scripts/domain/map_city_definition.gd")
-const GameMapDefinitionScript = preload("res://scripts/domain/game_map_definition.gd")
+const BoardSetupLoaderScript = preload("res://scripts/infrastructure/board_setup_loader.gd")
 
 var _failures: int = 0
 
 
 func _initialize() -> void:
-	var map_definition: GameMapDefinition = GameMapDefinitionScript.create_western_front()
+	var load_result: BoardSetupLoadResult = BoardSetupLoaderScript.new().load_western_front()
+	_expect(load_result.succeeded(), "The CSV-backed map should load successfully.")
+	if not load_result.succeeded():
+		quit(1)
+		return
+	var map_definition: GameMapDefinition = load_result.map_definition
 	var city_ids: Dictionary = {}
 	var expected_city_ids: Array[String] = [
-		"paris", "mezieres", "verdun", "meaux", "albert", "nancy", "amiens", "rheims",
-		"la_bassee", "lille", "maubeuge", "soissons", "valenciennes", "cambrai",
-		"saint_quentin", "laon", "hirson", "mons", "ghent", "tournai", "ypres", "liege",
-		"brussels", "charleroi", "namur", "antwerp", "luxembourg", "metz", "koblenz",
-		"strasbourg", "aachen", "saarbrucken",
+		"aachen", "albert", "amiens", "antwerp", "brussels", "cambrai", "charleroi",
+		"ghent", "hasselt", "hirson", "koblenz", "la_bassee", "laon", "liege", "lille",
+		"luxembourg", "maubeuge", "metz", "mezieres", "mons", "namur", "nancy", "paris",
+		"rheims", "saarbrucken", "saint_quentin", "soissons", "strasbourg", "tournai",
+		"valenciennes", "verdun", "ypres",
 	]
 	var connected_city_ids: Dictionary = {"paris": true}
 	_expect(
@@ -22,14 +26,18 @@ func _initialize() -> void:
 		"Map definition should be independent of the scene tree."
 	)
 	_expect(map_definition.cities.size() == 32, "The complete map should define all 32 cities.")
-	_expect(map_definition.connections.size() > 0, "The map should define road connections.")
+	_expect(
+		map_definition.connections.size() == 59,
+		"The map should load all 59 authoritative road connections."
+	)
 	_expect(
 		map_definition.find_city("paris").name == "Paris",
 		"Map definition should find a city by ID."
 	)
 	_expect(
-		map_definition.find_city("paris").position == Vector2(0.08, 0.76),
-		"Map definition should retain a city's static map position."
+		is_equal_approx(map_definition.find_city("paris").latitude, 48.857)
+		and is_equal_approx(map_definition.find_city("paris").longitude, 2.357),
+		"Map definition should retain CSV geographic coordinates."
 	)
 	_expect(
 		map_definition.find_city("paris").is_center_of_gravity,
@@ -43,12 +51,21 @@ func _initialize() -> void:
 			"Every map city should appear in the documented city list."
 		)
 		_expect(
-			city_definition.position.x >= 0.0
-			and city_definition.position.x <= 1.0
-			and city_definition.position.y >= 0.0
-			and city_definition.position.y <= 1.0,
-			"Map city positions should use normalized coordinates."
+			city_definition.latitude >= -90.0
+			and city_definition.latitude <= 90.0
+			and city_definition.longitude >= -180.0
+			and city_definition.longitude <= 180.0,
+			"Map city coordinates should use valid geographic bounds."
 		)
+	_expect(map_definition.find_city("meaux") == null, "Cities should come from cities.csv.")
+	_expect(
+		map_definition.find_city("hasselt") != null,
+		"Cities added to cities.csv should appear in the loaded map."
+	)
+	_expect(
+		map_definition.find_city("mezieres").name == "Mezieres",
+		"The city label should come from cities.csv while preserving its existing ID."
+	)
 	for connection: MapConnection in map_definition.connections:
 		_expect(
 			map_definition.find_city(connection.from_city_id) != null,
@@ -58,6 +75,7 @@ func _initialize() -> void:
 			map_definition.find_city(connection.to_city_id) != null,
 			"Roads should reference a known destination city."
 		)
+		_expect(connection.road_size == 1, "The current CSV road sizes should be retained.")
 	var found_new_city := true
 	while found_new_city:
 		found_new_city = false

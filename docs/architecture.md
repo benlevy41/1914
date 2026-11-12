@@ -173,6 +173,8 @@ For example, the application layer decides when a game should be saved and coord
 
 Similarly, future networking infrastructure may transport player actions and game information, but should not independently determine whether those actions are legal.
 
+The current Western Front map is sourced from `assets/board_setup/cities.csv` and `assets/board_setup/roads.csv`. The infrastructure layer reads and validates these files; the domain stores city latitude/longitude and connection road size without depending on the filesystem. The presentation layer is responsible for projecting geographic coordinates onto the board. Any future export preset must include the CSV files in its non-resource file filter.
+
 ## 4. Core Domain Model
 
 This section describes the responsibilities of major game concepts without prescribing exact class structures or method signatures.
@@ -218,9 +220,11 @@ The map has both static and dynamic aspects.
 
 A static map definition describes the geography and topology of the game board, including:
 - City identifiers and names.
-- City locations or map positions.
+- City latitude and longitude.
 - Connections between cities.
 - Connection types, such as roads.
+
+Presentation-specific positions and visual adjustments, including geographic projection and label placement, must not alter the authoritative map coordinates or connections.
 
 The logical game map represents cities and their connections as a graph, with cities as vertices and connections as edges.
 
@@ -339,6 +343,8 @@ Invalid player actions are expected gameplay outcomes, not necessarily software 
 Invalid operations must not leave the game state partially modified.
 
 The application should distinguish expected gameplay rejections from unexpected software failures.
+
+Presentation reads current display data through an application-provided snapshot rather than retaining domain objects. After a successful state-changing request, presentation requests a fresh snapshot and renders from it. The current synchronous implementation does not require push notifications; if future asynchronous updates are introduced, notifications should prompt presentation to fetch a fresh snapshot rather than serve as the source of truth. See [ADR 0001](decisions/0001-presentation-snapshot.md).
 
 ### 6.4 Player Actions and Decision Sources
 

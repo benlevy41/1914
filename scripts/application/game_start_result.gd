@@ -1,14 +1,14 @@
 class_name GameStartResult
 extends RefCounted
 
-var game_state: GameState
 var error_message: String
+var _succeeded: bool
 
 
-func _init(initial_game_state: GameState = null, initial_error_message: String = "") -> void:
-	game_state = initial_game_state
+func _init(was_successful: bool = false, initial_error_message: String = "") -> void:
+	_succeeded = was_successful
 	error_message = initial_error_message
 
 
 func succeeded() -> bool:
-	return game_state != null
+	return _succeeded

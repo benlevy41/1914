@@ -10,7 +10,6 @@ func _initialize() -> void:
 	var random_generator := RandomNumberGenerator.new()
 	random_generator.seed = 1914
 	var application: GameApplication = GameApplicationScript.new(random_generator)
-	var map_definition: GameMapDefinition = application.map_definition
 	var premature_placement: GameActionResult = application.place_initial_reserve("paris")
 	_expect(
 		not premature_placement.succeeded(),
@@ -20,18 +19,31 @@ func _initialize() -> void:
 		"Allied commander",
 		"German commander"
 	)
-	var state: GameState = result.game_state
-
 	_expect(result.succeeded(), "A new game should succeed when both leaders are named.")
+	var state: GameViewSnapshot = application.get_view_snapshot()
 	_expect(state.players.size() == 2, "A new game should initialize both players.")
+	var independent_snapshot: GameViewSnapshot = application.get_view_snapshot()
+	independent_snapshot.find_city("paris").unit_count = 17
 	_expect(
-		map_definition.cities.size() == 32,
+		application.get_view_snapshot().find_city("paris").unit_count == 1,
+		"Changing a view snapshot must not modify authoritative game state."
+	)
+	_expect(
+		state.cities.size() == 32,
 		"The map should define all 32 cities."
 	)
-	_expect(map_definition.connections.size() > 0, "The map should define road connections.")
 	_expect(
-		state.cities.size() == map_definition.cities.size(),
-		"Game state should have a state entry for every map city."
+		state.connections.size() == 59,
+		"The map should expose all 59 CSV-backed road connections."
+	)
+	_expect(
+		state.find_city("hasselt") != null and state.find_city("meaux") == null,
+		"The game should use the current CSV city set."
+	)
+	_expect(
+		is_equal_approx(state.find_city("paris").latitude, 48.857)
+		and is_equal_approx(state.find_city("paris").longitude, 2.357),
+		"City snapshots should expose geographic coordinates."
 	)
 	_expect(
 		state.players[0].name == "Allied commander",
@@ -52,16 +64,16 @@ func _initialize() -> void:
 	_expect(state.find_city("paris").unit_count == 1, "Paris should start with one sample unit.")
 	_expect(state.find_city("koblenz").unit_count == 1, "Koblenz should start with one sample unit.")
 	_expect(
-		map_definition.find_city("paris").is_center_of_gravity,
+		state.find_city("paris").is_center_of_gravity,
 		"Paris should be marked as a COG in the map."
 	)
 	_expect(
-		map_definition.find_city("koblenz").is_center_of_gravity,
+		state.find_city("koblenz").is_center_of_gravity,
 		"Koblenz should be marked as a COG in the map."
 	)
 	var allies_count := 0
 	var german_count := 0
-	for city: GameCity in state.cities:
+	for city: GameViewSnapshot.CityView in state.cities:
 		if city.owner_id == "allies":
 			allies_count += 1
 		elif city.owner_id == "german_empire":
@@ -69,7 +81,7 @@ func _initialize() -> void:
 	_expect(allies_count == 16, "The Allies should have a balanced starting territory count.")
 	_expect(german_count == 16, "The German Empire should have a balanced starting territory count.")
 	_expect(
-		state.phase == GameState.Phase.INITIAL_RESERVE_PLACEMENT,
+		state.phase == GameViewSnapshot.Phase.INITIAL_RESERVE_PLACEMENT,
 		"A new game should begin with initial reserve placement."
 	)
 	_expect(
@@ -83,8 +95,9 @@ func _initialize() -> void:
 			active_player.center_of_gravity_city_id
 		)
 		_expect(placement_result.succeeded(), "The active player should place each initial reserve.")
+		state = application.get_view_snapshot()
 	_expect(
-		state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT,
+		state.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT,
 		"Completing setup reserves should start reinforcement placement."
 	)
 	_expect(
@@ -101,8 +114,9 @@ func _initialize() -> void:
 			reinforcement_result.succeeded(),
 			"Germany should be able to place reinforcements in its COG."
 		)
+		state = application.get_view_snapshot()
 	_expect(
-		state.phase == GameState.Phase.ATTACK,
+		state.phase == GameViewSnapshot.Phase.ATTACK,
 		"Completing reinforcements should begin the same player's attack phase."
 	)
 	_expect(
@@ -142,12 +156,12 @@ func _test_quick_start_is_deterministic() -> void:
 	if not second_result.succeeded():
 		return
 
-	var first_state := first_result.game_state
-	var second_state := second_result.game_state
+	var first_state: GameViewSnapshot = first_application.get_view_snapshot()
+	var second_state: GameViewSnapshot = second_application.get_view_snapshot()
 	_expect(first_state.players[0].name == "Joffre", "Quick start should name the Allies Joffre.")
 	_expect(first_state.players[1].name == "Moltke", "Quick start should name Germany Moltke.")
 	_expect(
-		first_state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT,
+		first_state.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT,
 		"Quick start should finish both players' reserve placement."
 	)
 	_expect(
@@ -157,8 +171,7 @@ func _test_quick_start_is_deterministic() -> void:
 	var total_units := 0
 	var allies_units := 0
 	var german_units := 0
-	for city_index: int in first_state.cities.size():
-		var first_city := first_state.cities[city_index]
+	for first_city: GameViewSnapshot.CityView in first_state.cities:
 		var second_city := second_state.find_city(first_city.id)
 		total_units += first_city.unit_count
 		if first_city.owner_id == "allies":
@@ -222,8 +235,8 @@ func _test_dev_mode_uses_quick_start() -> void:
 	if not quick_result.succeeded():
 		return
 
-	var dev_state := dev_result.game_state
-	var quick_state := quick_result.game_state
+	var dev_state: GameViewSnapshot = dev_application.get_view_snapshot()
+	var quick_state: GameViewSnapshot = quick_application.get_view_snapshot()
 	_expect(
 		dev_state.phase == quick_state.phase
 		and dev_state.active_player_id == quick_state.active_player_id,
@@ -234,7 +247,7 @@ func _test_dev_mode_uses_quick_start() -> void:
 		and dev_state.players[1].name == quick_state.players[1].name,
 		"Dev mode should use the same players as quick start."
 	)
-	for city: GameCity in dev_state.cities:
+	for city: GameViewSnapshot.CityView in dev_state.cities:
 		var quick_city := quick_state.find_city(city.id)
 		_expect(
 			city.owner_id == quick_city.owner_id and city.unit_count == quick_city.unit_count,
@@ -249,17 +262,17 @@ func _test_dev_mode_uses_quick_start() -> void:
 		"Developer mode should allow changing ownership through the application."
 	)
 	_expect(
-		paris.owner_id == "german_empire",
+		dev_application.get_view_snapshot().find_city("paris").owner_id == "german_empire",
 		"Developer ownership changes should assign the other player's ID."
 	)
 	_expect(
-		paris.unit_count == original_paris_units,
+		dev_application.get_view_snapshot().find_city("paris").unit_count == original_paris_units,
 		"Developer ownership changes must preserve garrison size."
 	)
 	var add_units_result := dev_application.add_units_for_development("paris", 3)
 	_expect(add_units_result.succeeded(), "Dev mode should add units through the application.")
 	_expect(
-		paris.unit_count == original_paris_units + 3,
+		dev_application.get_view_snapshot().find_city("paris").unit_count == original_paris_units + 3,
 		"Application unit addition should update the authoritative garrison."
 	)
 	var remove_units_result := dev_application.remove_units_for_development("paris", 2)
@@ -268,7 +281,7 @@ func _test_dev_mode_uses_quick_start() -> void:
 		"Dev mode should remove units through the application."
 	)
 	_expect(
-		paris.unit_count == original_paris_units + 1,
+		dev_application.get_view_snapshot().find_city("paris").unit_count == original_paris_units + 1,
 		"Application unit removal should update the authoritative garrison."
 	)
 
