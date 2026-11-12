@@ -57,7 +57,8 @@ func _complete_current_turn(
 		)
 		_expect(placement_result.succeeded(), "The active player should place each reinforcement.")
 
-	if snapshot.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT:
+	var current_snapshot := application.get_view_snapshot()
+	if current_snapshot.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT:
 		var begin_attack_result := application.begin_attack_phase()
 		_expect(begin_attack_result.succeeded(), "The active player should begin attacks.")
 	var end_attack_result := application.end_attack_phase()
