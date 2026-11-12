@@ -5,6 +5,7 @@ const SCENE_TREE_TESTS: Array[String] = [
 	"res://tests/unit/test_combat_service.gd",
 	"res://tests/unit/test_dev_city_ownership.gd",
 	"res://tests/unit/test_game_map_definition.gd",
+	"res://tests/unit/test_game_end_conditions.gd",
 	"res://tests/unit/test_game_setup.gd",
 	"res://tests/unit/test_game_state.gd",
 	"res://tests/unit/test_initial_reserve_placement.gd",

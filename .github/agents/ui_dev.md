@@ -20,11 +20,11 @@ When proposing UI changes, consider the following:
 
 - **Understand before implementing.** Develop a clear understanding of the requested behavior, relevant architecture, and existing code before proposing changes.
 - **Prefer simplicity.** Use the simplest implementation that adequately satisfies the requirements. Avoid speculative abstractions and unnecessary flexibility.
-- **Preserve architectural boundaries.** Follow the responsibilities and dependency rules documented in `docs/architecture.md`. You should be working almost entirely within the presentation layer.  If you need to make modifications within other game layers, you must obtain approval from the project owner and primary implementation agent before proceeding.
+- **Preserve architectural boundaries.** Follow the responsibilities and dependency rules documented in `docs/architecture.md`. You should be working almost entirely within the presentation layer.  If you need to make modifications within other game layers, you must obtain approval from the project owner and coordinate with the primary dev agent.
 - **Work incrementally.** Prefer small, verifiable changes over large implementations that are difficult to understand or debug.
 - **Explain important decisions.** Describe why an implementation approach is appropriate, particularly when it involves unfamiliar Godot or GDScript concepts.
 - **Preserve project-owner control.** Identify decisions that exceed the scope of an approved task and obtain approval before proceeding.
-
+- **Preserve delineation between primary-dev and ui-dev responsibilities.** If a task requires changes to the underlying game logic or architecture, or any code in the application, domain or infrastructure layers, you must coordinate with the primary implementation agent and obtain approval from the project owner before proceeding.
 
 ## 3. Working Process
 
@@ -54,7 +54,7 @@ Before making significant changes, briefly explain:
 
 Do not require approval for every minor coding decision. Use reasonable judgment within the boundaries of the approved task.
 
-Obtain approval before making changes that require project-owner authorization under `AGENTS.md`.
+Obtain approval from the user before making changes that require project-owner authorization under `AGENTS.md`.
 
 ### Step 3: Implement incrementally
 
@@ -66,6 +66,12 @@ After each meaningful step:
 - Address errors before building additional functionality on top of them.
 
 Avoid modifying unrelated code.
+
+### Step 3a: Coordinate with the primary implementation agent
+
+Coordination does not imply tasking the primary implementation agent with work.  If a talk requires coordination, we will primarily use ADRs (Architectural Decision Records) to document the decision-making process and ensure that both agents are aligned on the implementation approach. The ADR can contain open questions and requests for input from the primary implementation agent or project owner.  A drafted ADR should contain a clear description of the problem and proposed solution, along with any tradeoffs or alternatives considered.  The ADR will be written in markdown format and stored in the `docs/decisions` directory.  This directory should be referenced for relevant ADRs or responses in submitted ADRs before undertaking any task that requires coordination.  The primary implementation agent will review the ADR and provide feedback or approval before the UI development agent proceeds with implementation.
+
+When submitting an ADR, inform the user/project owner so that they can review the ADR and provide feedback or approval.  The project owner will have final authority on any decisions that affect the architecture or game rules.
 
 ### Step 4: Verify
 

@@ -18,6 +18,7 @@ var phase: Phase
 var active_player_id: String
 var reserves_remaining_by_player_id: Dictionary
 var reinforcements_remaining: int = 0
+var winner_id: String = ""
 var _map_definition: GameMapDefinition
 
 
@@ -42,6 +43,7 @@ func _init(
 	if phase == Phase.INITIAL_RESERVE_PLACEMENT:
 		assert(not active_player_id.is_empty())
 		assert(reserves_remaining_by_player_id.has(active_player_id))
+	_check_for_winner()
 
 
 func find_player(player_id: String) -> GamePlayer:
@@ -59,6 +61,10 @@ func find_city(city_id: String) -> GameCity:
 
 
 func change_city_owner_for_development(city_id: String) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
+
 	var city := find_city(city_id)
 	if city == null:
 		return GameActionResult.new("That city is not on the map.")
@@ -79,10 +85,15 @@ func change_city_owner_for_development(city_id: String) -> GameActionResult:
 		return GameActionResult.new("The other player could not be found.")
 
 	city.assign_owner(other_player.id)
+	_check_for_winner()
 	return GameActionResult.new()
 
 
 func add_units_for_development(city_id: String, amount: int) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
+
 	var city := find_city(city_id)
 	if city == null:
 		return GameActionResult.new("That city is not on the map.")
@@ -103,10 +114,15 @@ func add_units_for_development(city_id: String, amount: int) -> GameActionResult
 	if city.owner_id.is_empty() and not city.restore_last_owner():
 		return GameActionResult.new("The city's previous owner could not be restored.")
 	city.add_units(amount)
+	_check_for_winner()
 	return GameActionResult.new()
 
 
 func remove_units_for_development(city_id: String, amount: int) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
+
 	var city := _find_occupied_development_city(city_id)
 	if city == null:
 		return GameActionResult.new(_development_city_error(city_id))
@@ -118,6 +134,7 @@ func remove_units_for_development(city_id: String, amount: int) -> GameActionRes
 	city.remove_units(amount)
 	if city.unit_count == 0:
 		city.leave_unoccupied()
+	_check_for_winner()
 	return GameActionResult.new()
 
 
@@ -140,6 +157,9 @@ func _development_city_error(city_id: String) -> String:
 
 
 func place_initial_reserve(city_id: String) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.INITIAL_RESERVE_PLACEMENT:
 		return GameActionResult.new("Initial reserve placement is not in progress.")
 
@@ -156,6 +176,7 @@ func place_initial_reserve(city_id: String) -> GameActionResult:
 	city.add_units(1)
 	reserves_remaining_by_player_id[active_player_id] = reserves_remaining - 1
 	_advance_initial_reserve_placement()
+	_check_for_winner()
 	return GameActionResult.new()
 
 
@@ -163,6 +184,9 @@ func begin_reinforcement_turn(
 	map_definition: GameMapDefinition,
 	first_player_id: String
 ) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.ACTIVE_PLAY:
 		return GameActionResult.new("Reinforcement placement cannot start right now.")
 	if players.is_empty():
@@ -180,6 +204,9 @@ func begin_reinforcement_turn(
 
 
 func place_reinforcement(city_id: String) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.REINFORCEMENT_PLACEMENT:
 		return GameActionResult.new("Reinforcement placement is not in progress.")
 	if reinforcements_remaining <= 0:
@@ -199,10 +226,14 @@ func place_reinforcement(city_id: String) -> GameActionResult:
 	reinforcements_remaining -= 1
 	if reinforcements_remaining == 0:
 		phase = Phase.ATTACK
+	_check_for_winner()
 	return GameActionResult.new()
 
 
 func begin_attack_phase() -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.REINFORCEMENT_PLACEMENT:
 		return GameActionResult.new("The attack phase cannot start right now.")
 	if reinforcements_remaining > 0:
@@ -213,6 +244,9 @@ func begin_attack_phase() -> GameActionResult:
 
 
 func validate_attack_source(attacking_city_id: String) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.ATTACK:
 		return GameActionResult.new("Attacking cities can only be selected during the attack phase.")
 	var attacking_city := find_city(attacking_city_id)
@@ -226,6 +260,9 @@ func validate_attack_source(attacking_city_id: String) -> GameActionResult:
 
 
 func validate_attack_target(defending_city_id: String) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.ATTACK:
 		return GameActionResult.new("Attack targets can only be selected during the attack phase.")
 	var defending_city := find_city(defending_city_id)
@@ -268,6 +305,9 @@ func resolve_attack_round(
 	defender_commitment: int,
 	combat_service: CombatService
 ) -> CombatRoundResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return CombatRoundResult.new([], [], 0, 0, game_over_error)
 	var validation_result := validate_attack(
 		attacking_city_id,
 		defending_city_id,
@@ -304,6 +344,7 @@ func resolve_attack_round(
 		attacking_city.leave_unoccupied()
 	if defending_city.unit_count == 0:
 		defending_city.leave_unoccupied()
+	_check_for_winner()
 	return result
 
 
@@ -312,6 +353,9 @@ func occupy_city(
 	target_city_id: String,
 	unit_count: int
 ) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.ATTACK:
 		return GameActionResult.new("Cities can only be occupied during the attack phase.")
 	var attacking_city := find_city(attacking_city_id)
@@ -334,10 +378,14 @@ func occupy_city(
 	attacking_city.remove_units(unit_count)
 	target_city.add_units(unit_count)
 	target_city.assign_owner(active_player_id)
+	_check_for_winner()
 	return GameActionResult.new()
 
 
 func end_attack_phase() -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.ATTACK:
 		return GameActionResult.new("The attack phase is not in progress.")
 	phase = Phase.REORGANIZATION
@@ -345,6 +393,9 @@ func end_attack_phase() -> GameActionResult:
 
 
 func validate_reorganization_source(source_city_id: String) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.REORGANIZATION:
 		return GameActionResult.new("Cities can only be selected during reorganization.")
 	var source_city := find_city(source_city_id)
@@ -360,6 +411,9 @@ func validate_reorganization_move(
 	target_city_id: String,
 	unit_count: int
 ) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	var source_result := validate_reorganization_source(source_city_id)
 	if not source_result.succeeded():
 		return source_result
@@ -386,6 +440,9 @@ func move_reorganization_units(
 	target_city_id: String,
 	unit_count: int
 ) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	var validation_result := validate_reorganization_move(
 		source_city_id,
 		target_city_id,
@@ -400,10 +457,14 @@ func move_reorganization_units(
 	target_city.add_units(unit_count)
 	if source_city.unit_count == 0:
 		source_city.leave_unoccupied()
+	_check_for_winner()
 	return GameActionResult.new()
 
 
 func end_reorganization_phase(next_player_id: String) -> GameActionResult:
+	var game_over_error := _game_over_error()
+	if not game_over_error.is_empty():
+		return GameActionResult.new(game_over_error)
 	if phase != Phase.REORGANIZATION:
 		return GameActionResult.new("The reorganization phase is not in progress.")
 	if _map_definition == null or not _validate_reinforcement_map(_map_definition):
@@ -415,6 +476,40 @@ func end_reorganization_phase(next_player_id: String) -> GameActionResult:
 
 	_start_reinforcement_turn(next_player_id)
 	return GameActionResult.new()
+
+
+func _game_over_error() -> String:
+	if winner_id.is_empty():
+		return ""
+	return "The game is over."
+
+
+func _check_for_winner() -> void:
+	if not winner_id.is_empty():
+		return
+
+	for player: GamePlayer in players:
+		var has_opponents := false
+		var opponents_have_units := false
+		var opponents_centers_occupied := true
+		for opponent: GamePlayer in players:
+			if opponent.id == player.id:
+				continue
+			has_opponents = true
+			var opponent_center := find_city(opponent.center_of_gravity_city_id)
+			if (
+				opponent_center == null
+				or opponent_center.owner_id != player.id
+				or opponent_center.unit_count <= 0
+			):
+				opponents_centers_occupied = false
+			for city: GameCity in cities:
+				if city.owner_id == opponent.id and city.unit_count > 0:
+					opponents_have_units = true
+
+		if has_opponents and not opponents_have_units and opponents_centers_occupied:
+			winner_id = player.id
+			return
 
 
 func _advance_initial_reserve_placement() -> void:

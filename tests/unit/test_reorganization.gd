@@ -203,7 +203,8 @@ func _create_map() -> GameMapDefinition:
 			MapCityDefinitionScript.new(
 				city_id,
 				city_id,
-				Vector2.ZERO,
+				0.0,
+				0.0,
 				city_id == "allies_cog" or city_id == "german_cog"
 			)
 		)

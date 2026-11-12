@@ -130,6 +130,8 @@ func _create_threshold_state(allied_territory_count: int) -> GameState:
 		cities.append(GameCityScript.new(city_id, owner_id, 1))
 	if allied_territory_count == 0:
 		cities[0].id = "allies_cog"
+		cities[0].leave_unoccupied()
+		cities[0].unit_count = 0
 		return GameStateScript.new([allies, german_empire], cities)
 	cities[0].id = "allies_cog"
 	return GameStateScript.new([allies, german_empire], cities)
@@ -146,7 +148,7 @@ func _create_threshold_map() -> GameMapDefinition:
 		elif index == 10:
 			city_id = "german_cog"
 		city_definitions.append(
-			MapCityDefinitionScript.new(city_id, city_id, Vector2.ZERO, is_center_of_gravity)
+			MapCityDefinitionScript.new(city_id, city_id, 0.0, 0.0, is_center_of_gravity)
 		)
 	return GameMapDefinitionScript.new(city_definitions, connections)
 
@@ -168,13 +170,13 @@ func _create_connectivity_state() -> GameState:
 
 func _create_connectivity_map() -> GameMapDefinition:
 	var city_definitions: Array[MapCityDefinition] = [
-		MapCityDefinitionScript.new("allies_cog", "Allied COG", Vector2.ZERO, true),
-		MapCityDefinitionScript.new("allies_link", "Allied Link", Vector2.ZERO),
-		MapCityDefinitionScript.new("allies_target", "Allied Target", Vector2.ZERO),
-		MapCityDefinitionScript.new("allies_isolated", "Allied Isolated", Vector2.ZERO),
-		MapCityDefinitionScript.new("allies_extra", "Allied Extra", Vector2.ZERO),
-		MapCityDefinitionScript.new("german_cog", "German COG", Vector2.ZERO, true),
-		MapCityDefinitionScript.new("german_block", "German Block", Vector2.ZERO),
+		MapCityDefinitionScript.new("allies_cog", "Allied COG", 0.0, 0.0, true),
+		MapCityDefinitionScript.new("allies_link", "Allied Link", 0.0, 0.0),
+		MapCityDefinitionScript.new("allies_target", "Allied Target", 0.0, 0.0),
+		MapCityDefinitionScript.new("allies_isolated", "Allied Isolated", 0.0, 0.0),
+		MapCityDefinitionScript.new("allies_extra", "Allied Extra", 0.0, 0.0),
+		MapCityDefinitionScript.new("german_cog", "German COG", 0.0, 0.0, true),
+		MapCityDefinitionScript.new("german_block", "German Block", 0.0, 0.0),
 	]
 	var connections: Array[MapConnection] = [
 		MapConnectionScript.new("allies_cog", "allies_link"),

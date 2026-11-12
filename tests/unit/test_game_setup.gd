@@ -1,14 +1,19 @@
 extends SceneTree
 
-const GameMapDefinitionScript = preload("res://scripts/domain/game_map_definition.gd")
 const GameSetupScript = preload("res://scripts/domain/game_setup.gd")
 const GamePlayerScript = preload("res://scripts/domain/player.gd")
+const BoardSetupLoaderScript = preload("res://scripts/infrastructure/board_setup_loader.gd")
 
 var _failures: int = 0
 
 
 func _initialize() -> void:
-	var map_definition: GameMapDefinition = GameMapDefinitionScript.create_western_front()
+	var map_load_result: BoardSetupLoadResult = BoardSetupLoaderScript.new().load_western_front()
+	_expect(map_load_result.succeeded(), "Game setup should load the CSV-backed map.")
+	if not map_load_result.succeeded():
+		quit(1)
+		return
+	var map_definition: GameMapDefinition = map_load_result.map_definition
 	var allies: GamePlayer = GamePlayerScript.new("allies", "Allied leader", "paris")
 	var german_empire: GamePlayer = GamePlayerScript.new("german_empire", "German leader", "koblenz")
 	var first_rng := RandomNumberGenerator.new()

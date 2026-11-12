@@ -3,17 +3,20 @@ extends RefCounted
 
 var id: String
 var name: String
-var position: Vector2
+var latitude: float
+var longitude: float
 var is_center_of_gravity: bool
 
 
 func _init(
 	city_id: String,
 	city_name: String,
-	map_position: Vector2,
+	city_latitude: float,
+	city_longitude: float,
 	center_of_gravity: bool = false
 ) -> void:
 	id = city_id
 	name = city_name
-	position = map_position
+	latitude = city_latitude
+	longitude = city_longitude
 	is_center_of_gravity = center_of_gravity

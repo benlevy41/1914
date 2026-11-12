@@ -112,13 +112,15 @@ func _test_development_unit_changes() -> void:
 		"Changing ownership after reoccupation should replace the remembered owner."
 	)
 
+	var limit_state := _create_state()
+	limit_state.cities.append(GameCityScript.new("german_cog", "german_empire", 1))
 	var limit_city := GameCityScript.new(
 		"limit",
 		"allies",
 		GameState.MAX_DEV_GARRISON_SIZE - 1
 	)
-	state.cities.append(limit_city)
-	var limit_result := state.add_units_for_development(limit_city.id, 1)
+	limit_state.cities.append(limit_city)
+	var limit_result := limit_state.add_units_for_development(limit_city.id, 1)
 	_expect(limit_result.succeeded(), "The maximum supported garrison should be reachable.")
 	_expect(
 		limit_city.unit_count == GameState.MAX_DEV_GARRISON_SIZE,
