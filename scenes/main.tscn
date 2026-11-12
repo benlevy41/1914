@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" uid="uid://coqmlmn37uu4f" path="res://scripts/presentation/main_screen.gd" id="1_main_screen"]
 [ext_resource type="PackedScene" path="res://scenes/board_view.tscn" id="2_board_view"]
-[ext_resource type="PackedScene" path="res://scenes/game_hud.tscn" id="3_game_hud"]
 
 [node name="MainScreen" type="Control" unique_id=1457093871]
 layout_mode = 3
@@ -34,13 +33,15 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 28
 text = "1914: The Western Front"
 
-[node name="GameHUD" parent="MarginContainer/Content" instance=ExtResource("3_game_hud")]
-layout_mode = 2
-
 [node name="GameStatus" type="Label" parent="MarginContainer/Content" unique_id=2022516689]
 layout_mode = 2
 text = "New game setup"
 autowrap_mode = 2
+
+[node name="DevModeIndicator" type="Label" parent="MarginContainer/Content" unique_id=561338520]
+visible = false
+layout_mode = 2
+text = "Developer mode"
 
 [node name="MenuPanel" type="VBoxContainer" parent="MarginContainer/Content" unique_id=2027370289]
 layout_mode = 2
@@ -100,6 +101,14 @@ theme_override_constants/separation = 16
 custom_minimum_size = Vector2(220, 0)
 layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="PlayersHeading" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1993280928]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Players"
+
+[node name="PlayerList" type="VBoxContainer" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1799922826]
+layout_mode = 2
 
 [node name="SelectedHeading" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1542871279]
 layout_mode = 2
