@@ -30,7 +30,11 @@ static func create_initial_state(
 		if city_definition.id != ALLIES_COG_ID and city_definition.id != GERMAN_EMPIRE_COG_ID:
 			unassigned_city_ids.append(city_definition.id)
 
-	for index: int in range(unassigned_city_ids.size() - 1, 0, -1):  # random shuffle of unoccupied cities
+	for index: int in range(
+		unassigned_city_ids.size() - 1,
+		0,
+		-1
+	):  # random shuffle of unoccupied cities
 		var swap_index := random_generator.randi_range(0, index)
 		var city_id := unassigned_city_ids[index]
 		unassigned_city_ids[index] = unassigned_city_ids[swap_index]
