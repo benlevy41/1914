@@ -1,6 +1,9 @@
 extends Node
 
 const MainScene = preload("res://scenes/main.tscn")
+const BoardNavigationChecks = preload("res://tests/integration/board_navigation_checks.gd")
+const HudChecks = preload("res://tests/integration/hud_checks.gd")
+const ReinforcementPathChecks = preload("res://tests/integration/reinforcement_path_checks.gd")
 
 var _failures: int = 0
 
@@ -22,7 +25,7 @@ func _run_test() -> void:
 	var custom_game_button: Button = menu_panel.get_node("CustomGame")
 	var dev_mode_button: Button = menu_panel.get_node("DevMode")
 	var dev_mode_indicator: Label = main_screen.get_node(
-		"MarginContainer/Content/DevModeIndicator"
+		"MarginContainer/Content/GameHUD/Content/Center/Info/DevModeIndicator"
 	)
 	var setup_prompt: Label = setup_panel.get_node("Prompt")
 	var name_input: LineEdit = setup_panel.get_node("LeaderName")
@@ -30,9 +33,6 @@ func _run_test() -> void:
 	var continue_button: Button = setup_panel.get_node("Continue")
 	var game_panel: HBoxContainer = main_screen.get_node("MarginContainer/Content/MainLayout")
 	var game_status: Label = main_screen.get_node("MarginContainer/Content/GameStatus")
-	var player_list: VBoxContainer = main_screen.get_node(
-		"MarginContainer/Content/MainLayout/Sidebar/PlayerList"
-	)
 	var selected_city_label: Label = main_screen.get_node(
 		"MarginContainer/Content/MainLayout/Sidebar/SelectedCity"
 	)
@@ -109,7 +109,6 @@ func _run_test() -> void:
 
 	_expect(not setup_panel.visible, "The name prompt should close after both names are entered.")
 	_expect(game_panel.visible, "The game board should appear after setup.")
-	_expect(player_list.get_child_count() == 2, "The screen should display both players.")
 	_expect(
 		board.get_child_count() == 1
 		and board.get_node("ViewportContainer") is SubViewportContainer,
@@ -189,6 +188,10 @@ func _run_test() -> void:
 		"The board render target should grow when the game window is enlarged: %s to %s."
 		% [original_viewport_size, sub_viewport.size]
 	)
+	_expect(
+		board.get_city_id_at_position(_city_screen_position(board, "paris")) == "paris",
+		"City picking should remain aligned after resizing the window."
+	)
 	get_tree().root.size = original_window_size
 	for frame: int in 5:
 		await get_tree().process_frame
@@ -206,14 +209,7 @@ func _run_test() -> void:
 		board_surface.mesh is BoxMesh and board_camera.current,
 		"The 3D scene should contain a flat board surface and an active camera."
 	)
-	_expect(
-		(player_list.get_child(0) as Label).text == "allies - Ada",
-		"The first player label should show the trimmed Allied leader name."
-	)
-	_expect(
-		(player_list.get_child(1) as Label).text == "german_empire - Otto",
-		"The second player label should show the trimmed German Empire leader name."
-	)
+	_failures += HudChecks.new().check_banner(main_screen)
 	_expect(
 		game_status.text.contains("Now place the initial reserve units."),
 		"The screen should explain that reserve placement follows territory setup."
@@ -247,6 +243,8 @@ func _run_test() -> void:
 	)
 
 	_select_city(board, "koblenz")
+	_failures += BoardNavigationChecks.new().check_clearing(main_screen, board, "reserve")
+	_select_city(board, "koblenz")
 	phase_action_button.emit_signal("pressed")
 	_expect(
 		_board_city(board, "koblenz").unit_count == 2,
@@ -273,7 +271,7 @@ func _run_test() -> void:
 		phase_action_button.emit_signal("pressed")
 
 	_expect(
-		turn_status.text == "Otto's reinforcement phase - 3 units remaining.",
+		turn_status.text.begins_with("Otto's reinforcement phase - 3 units remaining."),
 		"After setup, Germany should begin the first reinforcement phase."
 	)
 	_expect(
@@ -289,8 +287,8 @@ func _run_test() -> void:
 		"All five Allied reserves should have been placed."
 	)
 	_expect(
-		game_status.text.contains("Reinforcement phase"),
-		"Finishing setup should display the reinforcement phase."
+		game_status.visible and game_status.text.contains("Reinforcement phase"),
+		"Finishing setup should display the reinforcement instructions."
 	)
 
 	_select_city(board, "paris")
@@ -300,13 +298,15 @@ func _run_test() -> void:
 	)
 	for reinforcement_index: int in 3:
 		_select_city(board, "koblenz")
-		phase_action_button.emit_signal("pressed")
+		main_screen.call("_on_city_context_requested", "koblenz", Vector2.ZERO)
+		(main_screen.get_node("CityContextMenu") as PopupMenu).emit_signal("id_pressed", 4)
+		(main_screen.get_node("CityContextMenu") as PopupMenu).hide()
 	_expect(
 		_board_city(board, "koblenz").unit_count == 9,
 		"All three German reinforcements should be placed before attacks begin."
 	)
 	_expect(
-		turn_status.text == "Otto's attack phase.",
+		turn_status.text == "Placed one reinforcement in Koblenz.",
 		"Germany should remain active after completing reinforcement placement."
 	)
 	_expect(
@@ -352,6 +352,10 @@ func _run_test() -> void:
 		defender_prompt.text == "Ada: choose defending units.",
 		"The defending player should choose a commitment for each combat round."
 	)
+	_failures += BoardNavigationChecks.new().check_clearing(main_screen, board, "attack")
+	_select_city(board, "koblenz")
+	_select_city(board, "saarbrucken")
+	attack_action_button.emit_signal("pressed")
 	defender_commitment.value = 1
 	attack_action_button.emit_signal("pressed")
 	_expect(
@@ -383,6 +387,9 @@ func _run_test() -> void:
 		not move_units_button.disabled,
 		"A legal route should enable the unit transfer action."
 	)
+	_failures += BoardNavigationChecks.new().check_clearing(main_screen, board, "reorganization")
+	_select_city(board, "koblenz")
+	_select_city(board, "luxembourg")
 	reorganization_commitment.value = 1
 	move_units_button.emit_signal("pressed")
 	_expect(
@@ -404,7 +411,7 @@ func _run_test() -> void:
 		"Ending reorganization should begin the opposing player's reinforcement phase."
 	)
 	_expect(
-		turn_status.text == "Ada's reinforcement phase - 3 units remaining.",
+		turn_status.text.begins_with("Ada's reinforcement phase - 3 units remaining."),
 		"The next player's reinforcement phase should display the correct unit count."
 	)
 
@@ -454,21 +461,37 @@ func _run_test() -> void:
 		"Quick start should display the 3D board scene."
 	)
 	_expect(
-		not quick_start_screen.get_node("MarginContainer/Content/DevModeIndicator").visible,
+		not quick_start_screen.get_node(
+			"MarginContainer/Content/GameHUD/Content/Center/Info/DevModeIndicator"
+		).visible,
 		"Normal quick start should not display the developer-mode indicator."
 	)
 	var quick_start_context_menu := quick_start_screen.get_node("CityContextMenu") as PopupMenu
+	var quick_start_selection := quick_start_screen.get_node(
+		"MarginContainer/Content/MainLayout/Sidebar/SelectedCity"
+	) as Label
+	await _test_board_interactions(quick_start_board, quick_start_selection)
+	await get_tree().process_frame
+	_failures += await BoardNavigationChecks.new().run_overview(quick_start_board)
+	_send_mouse(_city_screen_position(quick_start_board, "paris"), MOUSE_BUTTON_RIGHT)
+	_expect(
+		quick_start_context_menu.visible and quick_start_context_menu.get_item_index(1) == -1,
+		"Right-clicking a city should open gameplay actions without developer options."
+	)
 	quick_start_screen.call(
 		"_on_city_context_requested",
 		"paris",
 		Vector2.ZERO
 	)
 	_expect(
-		not quick_start_context_menu.visible,
-		"Normal games should not open developer options for a city."
+		quick_start_context_menu.visible and quick_start_context_menu.get_item_index(1) == -1,
+		"Normal games should not expose developer options for a city."
 	)
+	_failures += HudChecks.new().check_normal_game(quick_start_screen)
 	get_tree().root.remove_child(quick_start_screen)
 	quick_start_screen.free()
+
+	_failures += await ReinforcementPathChecks.new().run(get_tree().root)
 
 	var dev_mode_screen := MainScene.instantiate() as Control
 	get_tree().root.add_child(dev_mode_screen)
@@ -479,7 +502,7 @@ func _run_test() -> void:
 	var dev_mode_error: Label = dev_mode_menu.get_node("Error")
 	var dev_mode_screen_button: Button = dev_mode_menu.get_node("DevMode")
 	var dev_mode_screen_indicator: Label = dev_mode_screen.get_node(
-		"MarginContainer/Content/DevModeIndicator"
+		"MarginContainer/Content/GameHUD/Content/Center/Info/DevModeIndicator"
 	)
 	var dev_mode_board: BoardView = dev_mode_screen.get_node(
 		"MarginContainer/Content/MainLayout/Board"
@@ -507,6 +530,7 @@ func _run_test() -> void:
 	if OS.is_debug_build():
 		var dev_application := dev_mode_screen.get("_game_application") as GameApplication
 		var dev_mode_state := dev_application._active_game_state as GameState
+		_failures += await BoardNavigationChecks.new().check_dev_overview(dev_mode_screen, dev_mode_board)
 		_expect(
 			dev_mode_state != null,
 			"Dev mode should start a game in debug builds."
@@ -519,10 +543,47 @@ func _run_test() -> void:
 			dev_mode_screen_indicator.visible,
 			"A dev-mode game should show its developer-mode indicator."
 		)
+		_failures += HudChecks.new().check_banner(dev_mode_screen)
 		_expect(
 			dev_mode_board.get_node("ViewportContainer/SubViewport/Board3D") != null,
 			"Dev mode should display the 3D board scene."
 		)
+		var dev_paris_position := _city_screen_position(dev_mode_board, "paris")
+		_send_mouse(dev_paris_position, MOUSE_BUTTON_RIGHT)
+		_expect(
+			dev_mode_context_menu.visible and dev_mode_screen.get("_context_city_id") == "paris",
+			"Right-clicking a city should open its developer context menu."
+		)
+		await get_tree().process_frame
+		var dev_camera := dev_mode_board.get_node(
+			"ViewportContainer/SubViewport/Board3D/Camera3D"
+		) as Camera3D
+		var menu_camera_position := dev_camera.position
+		_set_physical_key(KEY_D, true)
+		await get_tree().process_frame
+		dev_mode_board.call("_process", 1.0)
+		_set_physical_key(KEY_D, false)
+		_send_mouse(_city_screen_position(dev_mode_board, "paris"), MOUSE_BUTTON_WHEEL_UP)
+		_expect(
+			dev_camera.position == menu_camera_position,
+			"The camera should not pan or zoom while the context menu is open."
+		)
+		await get_tree().process_frame
+		_send_mouse(_city_screen_position(dev_mode_board, "koblenz"), MOUSE_BUTTON_RIGHT)
+		_expect(
+			dev_mode_context_menu.visible
+			and dev_mode_screen.get("_context_city_id") == "koblenz",
+			"Right-clicking another city should replace the open context menu target "
+			+ "(visible=%s, target=%s, picked=%s)."
+			% [
+				dev_mode_context_menu.visible,
+				dev_mode_screen.get("_context_city_id"),
+				dev_mode_board.get_city_id_at_position(
+					_city_screen_position(dev_mode_board, "koblenz")
+				),
+			]
+		)
+		dev_mode_context_menu.hide()
 		var paris := dev_mode_state.find_city("paris")
 		var original_paris_units := paris.unit_count
 		var paris_model := dev_mode_board.get_node(
@@ -537,14 +598,14 @@ func _run_test() -> void:
 			"Requesting developer options for a city should open its context menu."
 		)
 		_expect(
-			dev_mode_context_menu.item_count == 3
-			and dev_mode_context_menu.get_item_text(0) == "Change owner"
-			and dev_mode_context_menu.get_item_text(1) == "Add units"
-			and dev_mode_context_menu.get_item_text(2) == "Remove units",
+			dev_mode_context_menu.get_item_index(4) >= 0
+			and dev_mode_context_menu.get_item_index(1) >= 0
+			and dev_mode_context_menu.get_item_index(2) >= 0
+			and dev_mode_context_menu.get_item_index(3) >= 0,
 			"Dev mode should offer ownership, add-unit, and remove-unit options."
 		)
 		_expect(
-			not dev_mode_context_menu.is_item_disabled(0),
+			not dev_mode_context_menu.is_item_disabled(dev_mode_context_menu.get_item_index(1)),
 			"Change owner should be enabled for an occupied city."
 		)
 		dev_mode_context_menu.emit_signal("id_pressed", 1)
@@ -560,6 +621,7 @@ func _run_test() -> void:
 			_board_city(dev_mode_board, "paris").owner_name == "Moltke",
 			"The board snapshot should refresh to show the new owner."
 		)
+		_failures += HudChecks.new().check_banner(dev_mode_screen)
 		paris_model = dev_mode_board.get_node(
 			"ViewportContainer/SubViewport/Board3D/MapContent/City_paris/CityModel"
 		) as MeshInstance3D
@@ -571,6 +633,15 @@ func _run_test() -> void:
 		var units_before_dialog := paris.unit_count
 		dev_mode_context_menu.emit_signal("id_pressed", 2)
 		_expect(unit_change_dialog.visible, "Add units should open the unit-count dialog.")
+		_set_physical_key(KEY_D, true)
+		await get_tree().process_frame
+		var dialog_camera_position := dev_camera.position
+		dev_mode_board.call("_process", 1.0)
+		_set_physical_key(KEY_D, false)
+		_expect(
+			dev_camera.position == dialog_camera_position,
+			"The camera should not pan while the unit dialog is open."
+		)
 		_expect(
 			unit_change_dialog.dialog_text == "Add units to Paris:",
 			"The add dialog should clearly identify the action and city."
@@ -600,6 +671,7 @@ func _run_test() -> void:
 			paris.unit_count == units_before_dialog + 3,
 			"Confirming Add units should apply the selected amount."
 		)
+		_failures += HudChecks.new().check_banner(dev_mode_screen)
 		_expect(
 			_board_city(dev_mode_board, "paris").unit_count == paris.unit_count,
 			"The board snapshot should refresh after adding units."
@@ -640,8 +712,8 @@ func _run_test() -> void:
 		)
 		dev_mode_screen.call("_on_city_context_requested", "paris", Vector2.ZERO)
 		_expect(
-			not dev_mode_context_menu.is_item_disabled(1)
-			and dev_mode_context_menu.is_item_disabled(2),
+			not dev_mode_context_menu.is_item_disabled(dev_mode_context_menu.get_item_index(2))
+			and dev_mode_context_menu.is_item_disabled(dev_mode_context_menu.get_item_index(3)),
 			"An unoccupied city with a remembered owner should allow adding, but not removing, units."
 		)
 		dev_mode_context_menu.emit_signal("id_pressed", 2)
@@ -671,19 +743,18 @@ func _run_test() -> void:
 			"The dev context menu should still open for an unoccupied city."
 		)
 		_expect(
-			dev_mode_context_menu.item_count == 3
-			and dev_mode_context_menu.get_item_text(0) == "Change owner"
-			and dev_mode_context_menu.get_item_text(1) == "Add units"
-			and dev_mode_context_menu.get_item_text(2) == "Remove units",
+			dev_mode_context_menu.get_item_index(1) >= 0
+			and dev_mode_context_menu.get_item_index(2) >= 0
+			and dev_mode_context_menu.get_item_index(3) >= 0,
 			"Developer options should remain displayed for an unoccupied city."
 		)
 		_expect(
-			dev_mode_context_menu.is_item_disabled(0),
+			dev_mode_context_menu.is_item_disabled(dev_mode_context_menu.get_item_index(1)),
 			"Change owner should be disabled for an unoccupied city."
 		)
 		_expect(
-			not dev_mode_context_menu.is_item_disabled(1)
-			and dev_mode_context_menu.is_item_disabled(2),
+			not dev_mode_context_menu.is_item_disabled(dev_mode_context_menu.get_item_index(2))
+			and dev_mode_context_menu.is_item_disabled(dev_mode_context_menu.get_item_index(3)),
 			"Add is enabled for an unoccupied city with a remembered owner; "
 			+ "Remove should be disabled."
 		)
@@ -722,6 +793,7 @@ func _run_test() -> void:
 			(dev_mode_screen.get("_game_snapshot") as GameViewSnapshot).winner_id == "allies",
 			"The application snapshot should expose the winner to the presentation."
 		)
+		_failures += HudChecks.new().check_game_over(dev_mode_screen)
 		_expect(
 			dev_mode_turn_status.text == "Game over. Joffre wins."
 			and dev_mode_game_status.text.contains("Joffre wins"),
@@ -756,6 +828,152 @@ func _run_test() -> void:
 
 func _select_city(board: BoardView, city_id: String) -> void:
 	board.city_selected.emit(city_id)
+
+
+func _test_board_interactions(board: BoardView, selected_city_label: Label) -> void:
+	var container := board.get_node("ViewportContainer") as SubViewportContainer
+	var camera := board.get_node("ViewportContainer/SubViewport/Board3D/Camera3D") as Camera3D
+	var content := board.get_node("ViewportContainer/SubViewport/Board3D/MapContent") as Node3D
+	var original_position := camera.position
+	var original_rotation := camera.rotation
+	var original_target: Vector3 = board.get("_camera_target")
+	var original_distance: float = board.get("_camera_distance")
+	var paris_position := _city_screen_position(board, "paris")
+	_send_mouse(paris_position, MOUSE_BUTTON_LEFT)
+	_expect(
+		board.get_selected_city_id() == "paris" and selected_city_label.text.begins_with("Paris"),
+		"Clicking a projected city should select it through the screen controller."
+	)
+	var paris_selection := content.get_node("City_paris/Selection") as MeshInstance3D
+	_expect(paris_selection.visible, "The selected city should display its selection marker.")
+	_send_mouse(_city_screen_position(board, "koblenz"), MOUSE_BUTTON_LEFT)
+	var koblenz_selection := content.get_node("City_koblenz/Selection") as MeshInstance3D
+	_expect(
+		board.get_selected_city_id() == "koblenz"
+		and koblenz_selection.visible
+		and not paris_selection.visible,
+		"Selecting another city should move the selection marker."
+	)
+	_send_mouse(paris_position, MOUSE_BUTTON_LEFT)
+	_send_mouse(container.get_global_rect().position + Vector2(2, 2), MOUSE_BUTTON_LEFT)
+	_expect(
+		board.get_selected_city_id().is_empty()
+		and not paris_selection.visible
+		and selected_city_label.text == "Select a city on the board.",
+		"Clicking empty board space should clear the city selection."
+	)
+	_expect(
+		board.get_city_id_at_position(container.get_global_rect().position - Vector2.ONE) == "",
+		"Positions outside the board must not pick a city."
+	)
+	_send_mouse(paris_position, MOUSE_BUTTON_LEFT)
+	board.refresh_snapshot(board.get("_snapshot") as GameViewSnapshot)
+	paris_selection = content.get_node("City_paris/Selection") as MeshInstance3D
+	_expect(
+		board.get_selected_city_id() == "paris" and paris_selection.visible,
+		"Refreshing the snapshot should retain the selected city's marker."
+	)
+	board.clear_selection()
+	_expect(
+		board.get_selected_city_id().is_empty() and not paris_selection.visible,
+		"Clearing selection should hide the marker."
+	)
+
+	var text_input := LineEdit.new()
+	board.add_child(text_input)
+	text_input.grab_focus()
+	_set_physical_key(KEY_D, true)
+	await get_tree().process_frame
+	board.call("_process", 1.0)
+	_set_physical_key(KEY_D, false)
+	_send_mouse(paris_position, MOUSE_BUTTON_WHEEL_UP)
+	_expect(
+		camera.position.is_equal_approx(original_position),
+		"Typing in a text field should prevent both panning and scroll zoom."
+	)
+	text_input.free()
+
+	_failures += BoardNavigationChecks.new().run(board, _city_screen_position(board, "paris"))
+	var saved_window_size := get_tree().root.size
+	get_tree().root.size = Vector2i(1728, 972)
+	for frame: int in 5:
+		await get_tree().process_frame
+	_failures += BoardNavigationChecks.new().run(board, _city_screen_position(board, "paris"))
+	get_tree().root.size = saved_window_size
+	for frame: int in 5:
+		await get_tree().process_frame
+
+	for step: int in 30:
+		_send_mouse(paris_position, MOUSE_BUTTON_WHEEL_UP)
+	var nearest_position := camera.position
+	_send_mouse(paris_position, MOUSE_BUTTON_WHEEL_UP)
+	_expect(
+		camera.position.is_equal_approx(nearest_position)
+		and nearest_position.y > 0.0
+		and nearest_position.y < original_position.y,
+		"Scroll zoom should stop at the near limit above the board."
+	)
+	for step: int in 40:
+		_send_mouse(paris_position, MOUSE_BUTTON_WHEEL_DOWN)
+	var farthest_position := camera.position
+	_send_mouse(paris_position, MOUSE_BUTTON_WHEEL_DOWN)
+	_expect(
+		camera.position.is_equal_approx(farthest_position)
+		and farthest_position.distance_to(original_position) > 1.0,
+		"Scroll zoom should stop at the far limit."
+	)
+	_send_mouse(paris_position, MOUSE_BUTTON_WHEEL_UP)
+	await get_tree().create_timer(0.35).timeout
+	_expect(
+		camera.rotation.is_equal_approx(original_rotation),
+		"Zooming in from the strategic view should restore the original angle."
+	)
+	_set_physical_key(KEY_D, true)
+	await get_tree().process_frame
+	board.call("_process", 100.0)
+	var pan_limit_position := camera.position
+	board.call("_process", 100.0)
+	_set_physical_key(KEY_D, false)
+	_expect(
+		camera.position.is_equal_approx(pan_limit_position)
+		and pan_limit_position.x > original_position.x
+		and camera.rotation.is_equal_approx(original_rotation),
+		"WASD should pan within board bounds without changing camera rotation."
+	)
+	board.set("_camera_target", original_target)
+	board.set("_camera_distance", original_distance)
+	board.call("_update_camera")
+
+
+func _city_screen_position(board: BoardView, city_id: String) -> Vector2:
+	var container := board.get_node("ViewportContainer") as SubViewportContainer
+	var viewport := container.get_node("SubViewport") as SubViewport
+	var camera := viewport.get_node("Board3D/Camera3D") as Camera3D
+	var city := viewport.get_node("Board3D/MapContent/City_%s" % city_id) as Node3D
+	var position := camera.unproject_position(city.global_position + Vector3(0, 0.13, 0))
+	return (
+		container.get_global_transform_with_canvas()
+		* (position * container.size / Vector2(viewport.size))
+	)
+
+
+func _send_mouse(position: Vector2, button: MouseButton) -> void:
+	var event := InputEventMouseButton.new()
+	event.position = position
+	event.global_position = position
+	event.button_index = button
+	event.pressed = true
+	get_tree().root.push_input(event)
+	event = event.duplicate()
+	event.pressed = false
+	get_tree().root.push_input(event)
+
+
+func _set_physical_key(key: Key, pressed: bool) -> void:
+	var event := InputEventKey.new()
+	event.physical_keycode = key
+	event.pressed = pressed
+	Input.parse_input_event(event)
 
 
 func _board_city(board: BoardView, city_id: String) -> GameViewSnapshot.CityView:

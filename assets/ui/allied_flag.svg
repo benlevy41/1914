@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120" viewBox="0 0 240 120">
+  <defs>
+    <clipPath id="british"><path d="M0 0H240V120Z"/></clipPath>
+    <clipPath id="french"><path d="M0 0L240 120H0Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#french)">
+    <rect width="80" height="120" fill="#002395"/>
+    <rect x="80" width="80" height="120" fill="#ffffff"/>
+    <rect x="160" width="80" height="120" fill="#ed2939"/>
+  </g>
+  <g clip-path="url(#british)">
+    <rect width="240" height="120" fill="#012169"/>
+    <path d="M0 0H16L240 112V120H224L0 8Z" fill="#ffffff"/>
+    <path d="M224 0H240V8L16 120H0V112Z" fill="#ffffff"/>
+    <path d="M0 0H8L240 116V120H232L0 4Z" fill="#c8102e"/>
+    <path d="M232 0H240V4L8 120H0V116Z" fill="#c8102e"/>
+    <rect x="108" width="24" height="120" fill="#ffffff"/>
+    <rect y="48" width="240" height="24" fill="#ffffff"/>
+    <rect x="114" width="12" height="120" fill="#c8102e"/>
+    <rect y="54" width="240" height="12" fill="#c8102e"/>
+  </g>
+</svg>

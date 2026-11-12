@@ -9,6 +9,7 @@ const GameApplicationScript = preload("res://scripts/application/game_applicatio
 const CHANGE_CITY_OWNER_MENU_ITEM_ID := 1
 const ADD_UNITS_MENU_ITEM_ID := 2
 const REMOVE_UNITS_MENU_ITEM_ID := 3
+const PLACE_REINFORCEMENT_MENU_ITEM_ID := 4
 
 var _game_application: GameApplication
 var _game_snapshot: GameViewSnapshot
@@ -16,6 +17,7 @@ var _city_context_menu: PopupMenu
 var _unit_change_dialog: ConfirmationDialog
 var _unit_change_selector: SpinBox
 var _context_city_id: String = ""
+var _context_menu_hint: String = ""
 var _pending_unit_change: DevelopmentUnitChange
 var _allies_name: String = ""
 var _is_entering_german_name: bool = false
@@ -27,9 +29,10 @@ var _reorganization_target_city_id: String = ""
 var _awaiting_defender_commitment: bool = false
 var _displayed_phase: int = -1
 
-@onready var _player_list: VBoxContainer = $MarginContainer/Content/MainLayout/Sidebar/PlayerList
 @onready var _selected_city_label: Label = $MarginContainer/Content/MainLayout/Sidebar/SelectedCity
 @onready var _board: BoardView = $MarginContainer/Content/MainLayout/Board
+@onready var _hud: GameHUD = $MarginContainer/Content/GameHUD
+@onready var _title: Label = $MarginContainer/Content/Title
 @onready var _menu_panel: VBoxContainer = $MarginContainer/Content/MenuPanel
 @onready var _custom_game_button: Button = $MarginContainer/Content/MenuPanel/CustomGame
 @onready var _quick_start_button: Button = $MarginContainer/Content/MenuPanel/QuickStart
@@ -42,7 +45,9 @@ var _displayed_phase: int = -1
 @onready var _continue_button: Button = $MarginContainer/Content/SetupPanel/Continue
 @onready var _game_panel: HBoxContainer = $MarginContainer/Content/MainLayout
 @onready var _game_status: Label = $MarginContainer/Content/GameStatus
-@onready var _dev_mode_indicator: Label = $MarginContainer/Content/DevModeIndicator
+@onready var _dev_mode_indicator: Label = (
+	$MarginContainer/Content/GameHUD/Content/Center/Info/DevModeIndicator
+)
 @onready var _turn_status: Label = $MarginContainer/Content/MainLayout/Sidebar/TurnStatus
 @onready var _phase_action_button: Button = $MarginContainer/Content/MainLayout/Sidebar/PhaseAction
 @onready var _attack_panel: VBoxContainer = (
@@ -96,7 +101,10 @@ func _ready() -> void:
 	_city_context_menu.name = "CityContextMenu"
 	_city_context_menu.exclusive = false
 	_city_context_menu.id_pressed.connect(_on_city_context_menu_id_pressed)
+	_city_context_menu.window_input.connect(_on_context_menu_input)
 	add_child(_city_context_menu)
+	_city_context_menu.visibility_changed.connect(_update_board_navigation)
+	_city_context_menu.visibility_changed.connect(_on_context_menu_visibility_changed)
 	_unit_change_dialog = ConfirmationDialog.new()
 	_unit_change_dialog.name = "UnitChangeDialog"
 	_unit_change_dialog.title = "Developer unit change"
@@ -114,6 +122,7 @@ func _ready() -> void:
 	_unit_change_selector.suffix = " units"
 	_unit_change_dialog.add_child(_unit_change_selector)
 	add_child(_unit_change_dialog)
+	_unit_change_dialog.visibility_changed.connect(_update_board_navigation)
 	_setup_prompt.text = "Who will lead the Allied forces?"
 	_custom_game_button.pressed.connect(_on_custom_game_pressed)
 	_quick_start_button.pressed.connect(_on_quick_start_pressed)
@@ -138,10 +147,20 @@ func _ready() -> void:
 	_phase_action_button.disabled = true
 
 
+func _update_board_navigation() -> void:
+	_board.set_navigation_blocked(_city_context_menu.visible or _unit_change_dialog.visible)
+
+
+func _on_context_menu_visibility_changed() -> void:
+	if not _city_context_menu.visible and not _context_menu_hint.is_empty():
+		if _turn_status.text == _context_menu_hint:
+			_update_phase_status()
+		_context_menu_hint = ""
+
+
 func _input(event: InputEvent) -> void:
 	if (
 		_game_snapshot == null
-		or not _game_snapshot.dev_mode_active
 		or _unit_change_dialog.visible
 		or not (event is InputEventMouseButton)
 		or event.button_index != MOUSE_BUTTON_RIGHT
@@ -149,12 +168,31 @@ func _input(event: InputEvent) -> void:
 	):
 		return
 
-	var city_id := _board.get_city_id_at_position(event.global_position)
-	if city_id.is_empty():
-		return
+	if _try_open_city_context(event.global_position):
+		get_viewport().set_input_as_handled()
 
-	_on_city_context_requested(city_id, event.global_position)
-	get_viewport().set_input_as_handled()
+
+func _on_context_menu_input(event: InputEvent) -> void:
+	# Embedded popups receive outside right-clicks before the parent viewport.
+	if (
+		not (event is InputEventMouseButton)
+		or event.button_index != MOUSE_BUTTON_RIGHT
+		or not event.pressed
+		or Rect2(Vector2.ZERO, Vector2(_city_context_menu.size)).has_point(event.position)
+	):
+		return
+	var screen_position: Vector2 = event.position + Vector2(_city_context_menu.position)
+	if not _city_context_menu.is_embedded():
+		screen_position -= Vector2(get_window().position)
+	if _try_open_city_context(screen_position):
+		_city_context_menu.set_input_as_handled()
+
+
+func _try_open_city_context(screen_position: Vector2) -> bool:
+	var city_id := _board.get_city_id_at_position(screen_position)
+	if city_id.is_empty():
+		return false
+	return _on_city_context_requested(city_id, screen_position)
 
 
 func _on_custom_game_pressed() -> void:
@@ -216,8 +254,8 @@ func _submit_current_leader_name() -> void:
 func _show_game() -> void:
 	if not _refresh_game_view():
 		return
-	_display_players()
 	_board.city_selected.connect(_on_city_selected)
+	_board.selection_cleared.connect(_on_board_selection_cleared)
 	_board.city_context_requested.connect(_on_city_context_requested)
 	_board.configure(_game_snapshot)
 	_game_status.text = (
@@ -228,6 +266,8 @@ func _show_game() -> void:
 	_update_phase_status()
 	_menu_panel.hide()
 	_setup_panel.hide()
+	_title.hide()
+	_hud.show()
 	_game_panel.show()
 
 
@@ -238,31 +278,55 @@ func _refresh_game_view() -> bool:
 		return false
 	_game_snapshot = snapshot
 	_board.refresh_snapshot(_game_snapshot)
+	_hud.update_snapshot(_game_snapshot)
 	return true
 
 
-func _display_players() -> void:
-	for player: GameViewSnapshot.PlayerView in _game_snapshot.players:
-		var player_label := Label.new()
-		player_label.text = "%s - %s" % [player.id, player.name]
-		_player_list.add_child(player_label)
-
-
-func _on_city_context_requested(city_id: String, screen_position: Vector2) -> void:
+func _on_city_context_requested(city_id: String, screen_position: Vector2) -> bool:
 	if (
 		_game_snapshot == null
-		or not _game_snapshot.dev_mode_active
 		or not _game_snapshot.winner_id.is_empty()
 	):
-		return
+		return false
 
 	var city := _game_snapshot.find_city(city_id)
 	if city == null:
 		push_error("Cannot show a context menu for unknown city '%s'." % city_id)
-		return
+		return false
 
+	if _city_context_menu.visible:
+		_city_context_menu.hide()
 	_context_city_id = city_id
 	_city_context_menu.clear()
+	if (
+		_game_snapshot.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT
+		and _game_snapshot.reinforcements_remaining > 0
+	):
+		var validation := _game_application.validate_reinforcement(city_id)
+		_city_context_menu.add_item("Place reinforcement", PLACE_REINFORCEMENT_MENU_ITEM_ID)
+		_city_context_menu.set_item_disabled(0, not validation.succeeded())
+		_update_phase_status()
+		if not validation.succeeded():
+			_turn_status.text = validation.error_message
+		else:
+			_turn_status.text = "Place one reinforcement in %s." % city.name
+		_context_menu_hint = _turn_status.text
+	if _game_snapshot.dev_mode_active:
+		if _city_context_menu.item_count > 0:
+			_city_context_menu.add_separator("Developer tools")
+		_add_development_menu_items(city)
+	if _city_context_menu.item_count == 0:
+		return false
+	var popup_position := screen_position
+	if not get_viewport().gui_embed_subwindows:
+		popup_position += Vector2(get_window().position)
+	_city_context_menu.popup(
+		Rect2i(Vector2i(popup_position), Vector2i.ZERO)
+	)
+	return true
+
+
+func _add_development_menu_items(city: GameViewSnapshot.CityView) -> void:
 	_city_context_menu.add_item("Change owner", CHANGE_CITY_OWNER_MENU_ITEM_ID)
 	_city_context_menu.add_item("Add units", ADD_UNITS_MENU_ITEM_ID)
 	_city_context_menu.add_item("Remove units", REMOVE_UNITS_MENU_ITEM_ID)
@@ -285,16 +349,17 @@ func _on_city_context_requested(city_id: String, screen_position: Vector2) -> vo
 		_city_context_menu.get_item_index(REMOVE_UNITS_MENU_ITEM_ID),
 		remove_unavailable
 	)
-	if _city_context_menu.visible:
-		_city_context_menu.hide()
-	_city_context_menu.popup(
-		Rect2i(Vector2i(screen_position), Vector2i.ZERO)
-	)
 
 
 func _on_city_context_menu_id_pressed(item_id: int) -> void:
 	if _context_city_id.is_empty():
 		push_error("Cannot use a city context-menu action without a city.")
+		return
+	if item_id == PLACE_REINFORCEMENT_MENU_ITEM_ID:
+		_place_context_reinforcement()
+		return
+	if not _game_snapshot.dev_mode_active:
+		_turn_status.text = "Developer tools are unavailable in this game."
 		return
 	if item_id == ADD_UNITS_MENU_ITEM_ID:
 		_open_unit_change_dialog(DevelopmentUnitChange.ADD)
@@ -321,6 +386,23 @@ func _on_city_context_menu_id_pressed(item_id: int) -> void:
 	_turn_status.text = "%s is now owned by %s." % [city.name, city.owner_name]
 	if not _game_snapshot.winner_id.is_empty():
 		_update_phase_status()
+
+
+func _place_context_reinforcement() -> void:
+	var result := _game_application.place_reinforcement(_context_city_id)
+	if not result.succeeded():
+		_turn_status.text = result.error_message
+		return
+	if not _refresh_game_view():
+		return
+	var city := _game_snapshot.find_city(_context_city_id)
+	if city == null:
+		push_error("Cannot display updated state for unknown city '%s'." % _context_city_id)
+		return
+	if _selected_city_id == city.id:
+		_update_selected_city_label(city)
+	_update_phase_status()
+	_turn_status.text = "Placed one reinforcement in %s." % city.name
 
 
 func _open_unit_change_dialog(change: DevelopmentUnitChange) -> void:
@@ -401,6 +483,21 @@ func _on_unit_change_confirmed() -> void:
 		_update_phase_status()
 
 
+func _on_board_selection_cleared() -> void:
+	_selected_city_id = ""
+	_attack_source_city_id = ""
+	_attack_target_city_id = ""
+	_reorganization_source_city_id = ""
+	_reorganization_target_city_id = ""
+	_awaiting_defender_commitment = false
+	_attacker_commitment.value = 1
+	_defender_commitment.value = 1
+	_occupation_commitment.value = 1
+	_reorganization_commitment.value = 1
+	_selected_city_label.text = "Select a city on the board."
+	_update_phase_status()
+
+
 func _on_city_selected(city_id: String) -> void:
 	var city := _game_snapshot.find_city(city_id)
 	if city == null:
@@ -417,6 +514,15 @@ func _on_city_selected(city_id: String) -> void:
 		attack_selection_result = _update_attack_selection(city_id)
 	elif _game_snapshot.phase == GameViewSnapshot.Phase.REORGANIZATION:
 		reorganization_selection_result = _update_reorganization_selection(city_id)
+	_update_selected_city_label(city)
+	_update_phase_status()
+	if not attack_selection_result.succeeded():
+		_turn_status.text = attack_selection_result.error_message
+	elif not reorganization_selection_result.succeeded():
+		_turn_status.text = reorganization_selection_result.error_message
+
+
+func _update_selected_city_label(city: GameViewSnapshot.CityView) -> void:
 	var owner_name := city.owner_name if not city.owner_name.is_empty() else "Unoccupied"
 	var unit_label := "unit" if city.unit_count == 1 else "units"
 	_selected_city_label.text = "%s - %s, %d %s" % [
@@ -425,11 +531,6 @@ func _on_city_selected(city_id: String) -> void:
 		city.unit_count,
 		unit_label,
 	]
-	_update_phase_status()
-	if not attack_selection_result.succeeded():
-		_turn_status.text = attack_selection_result.error_message
-	elif not reorganization_selection_result.succeeded():
-		_turn_status.text = reorganization_selection_result.error_message
 
 
 func _on_phase_action_pressed() -> void:
@@ -758,11 +859,12 @@ func _update_phase_status() -> void:
 		var reinforcement_unit_label := (
 			"unit" if _game_snapshot.reinforcements_remaining == 1 else "units"
 		)
-		_turn_status.text = "%s's reinforcement phase - %d %s remaining." % [
+		_turn_status.text = "%s's reinforcement phase - %d %s remaining. Right-click a city to place." % [
 			_game_snapshot.active_player_name,
 			_game_snapshot.reinforcements_remaining,
 			reinforcement_unit_label,
 		]
+		_phase_action_button.hide()
 		_phase_action_button.text = "Place reinforcement"
 		_phase_action_button.disabled = _selected_city_id.is_empty()
 		return

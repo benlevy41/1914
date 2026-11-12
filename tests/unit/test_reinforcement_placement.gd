@@ -49,9 +49,11 @@ func _test_legal_and_rejected_placements() -> void:
 	_expect(state.reinforcements_remaining == 1, "Five Allied cities should yield one reinforcement.")
 
 	var isolated_city := state.find_city("allies_isolated")
+	var validation_result := state.validate_reinforcement("allies_isolated")
 	var isolated_result: GameActionResult = state.place_reinforcement("allies_isolated")
 	_expect(
-		not isolated_result.succeeded(),
+		not validation_result.succeeded()
+		and validation_result.error_message == isolated_result.error_message,
 		"An owned city behind an enemy-held city is not reachable."
 	)
 	_expect(
@@ -73,6 +75,14 @@ func _test_legal_and_rejected_placements() -> void:
 	_expect(not unknown_city_result.succeeded(), "A reinforcement target must exist on the map.")
 
 	var target_city := state.find_city("allies_target")
+	var valid_result := state.validate_reinforcement("allies_target")
+	_expect(
+		valid_result.succeeded()
+		and target_city.unit_count == 1
+		and state.reinforcements_remaining == 1
+		and state.phase == GameState.Phase.REINFORCEMENT_PLACEMENT,
+		"Validating a legal placement must not change the game state."
+	)
 	var placement_result: GameActionResult = state.place_reinforcement("allies_target")
 	_expect(placement_result.succeeded(), "A reachable owned city should accept a reinforcement.")
 	_expect(target_city.unit_count == 2, "A successful placement should add one unit.")

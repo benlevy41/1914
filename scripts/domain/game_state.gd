@@ -204,6 +204,20 @@ func begin_reinforcement_turn(
 
 
 func place_reinforcement(city_id: String) -> GameActionResult:
+	var validation_result := validate_reinforcement(city_id)
+	if not validation_result.succeeded():
+		return validation_result
+
+	var city := find_city(city_id)
+	city.add_units(1)
+	reinforcements_remaining -= 1
+	if reinforcements_remaining == 0:
+		phase = Phase.ATTACK
+	_check_for_winner()
+	return GameActionResult.new()
+
+
+func validate_reinforcement(city_id: String) -> GameActionResult:
 	var game_over_error := _game_over_error()
 	if not game_over_error.is_empty():
 		return GameActionResult.new(game_over_error)
@@ -222,11 +236,6 @@ func place_reinforcement(city_id: String) -> GameActionResult:
 			"Choose a city connected to the active player's center of gravity by controlled roads."
 		)
 
-	city.add_units(1)
-	reinforcements_remaining -= 1
-	if reinforcements_remaining == 0:
-		phase = Phase.ATTACK
-	_check_for_winner()
 	return GameActionResult.new()
 
 
