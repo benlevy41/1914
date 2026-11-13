@@ -42,6 +42,11 @@ layout_mode = 2
 text = "New game setup"
 autowrap_mode = 2
 
+[node name="DevModeIndicator" type="Label" parent="MarginContainer/Content" unique_id=561338520]
+visible = false
+layout_mode = 2
+text = "Developer mode"
+
 [node name="MenuPanel" type="VBoxContainer" parent="MarginContainer/Content" unique_id=2027370289]
 layout_mode = 2
 theme_override_constants/separation = 8
@@ -101,6 +106,14 @@ custom_minimum_size = Vector2(220, 0)
 layout_mode = 2
 theme_override_constants/separation = 8
 
+[node name="PlayersHeading" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1993280928]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Players"
+
+[node name="PlayerList" type="VBoxContainer" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1799922826]
+layout_mode = 2
+
 [node name="SelectedHeading" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1542871279]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
@@ -114,6 +127,11 @@ autowrap_mode = 2
 [node name="TurnStatus" type="Label" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=1619945888]
 layout_mode = 2
 autowrap_mode = 2
+
+[node name="ReturnToMenu" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar"]
+visible = false
+layout_mode = 2
+text = "Return to start menu"
 
 [node name="PhaseAction" type="Button" parent="MarginContainer/Content/MainLayout/Sidebar" unique_id=194397870]
 layout_mode = 2

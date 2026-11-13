@@ -24,6 +24,7 @@ const OVERVIEW_PADDING := 1.1
 
 var _snapshot: GameViewSnapshot
 var _selected_city_id: String = ""
+var _target_city_ids: Array[String] = []
 var _city_visuals: Dictionary = {}
 var _navigation_blocked: bool = false
 var _camera_target: Vector3
@@ -44,6 +45,7 @@ var _unowned_material: StandardMaterial3D
 var _road_material: StandardMaterial3D
 var _cog_material: StandardMaterial3D
 var _selection_material: StandardMaterial3D
+var _attack_target_material: StandardMaterial3D
 var _road_mesh := BoxMesh.new()
 var _city_base_mesh := CylinderMesh.new()
 var _city_body_mesh := CylinderMesh.new()
@@ -106,6 +108,7 @@ func _set_camera_target(target: Vector3) -> void:
 
 func configure(snapshot: GameViewSnapshot) -> void:
 	_selected_city_id = ""
+	_target_city_ids.clear()
 	refresh_snapshot(snapshot)
 
 
@@ -119,6 +122,20 @@ func refresh_snapshot(snapshot: GameViewSnapshot) -> void:
 
 func get_selected_city_id() -> String:
 	return _selected_city_id
+
+
+func get_city_screen_position(city_id: String) -> Variant:
+	if not _city_visuals.has(city_id) or _sub_viewport.size.x <= 0 or _sub_viewport.size.y <= 0:
+		return null
+	var city: Node3D = _city_visuals[city_id]
+	var center := city.global_position + Vector3(0.0, 0.13, 0.0)
+	if _camera.is_position_behind(center):
+		return null
+	var position := _camera.unproject_position(center) * _viewport_container.size
+	position /= Vector2(_sub_viewport.size)
+	if not Rect2(Vector2.ZERO, _viewport_container.size).has_point(position):
+		return null
+	return _viewport_container.get_global_transform_with_canvas() * position
 
 
 func get_city_id_at_position(screen_position: Vector2) -> String:
@@ -149,6 +166,19 @@ func get_city_id_at_position(screen_position: Vector2) -> String:
 
 func clear_selection() -> void:
 	_selected_city_id = ""
+	_update_selection_visuals()
+
+
+func select_city(city_id: String) -> void:
+	if not _city_visuals.has(city_id):
+		push_error("Cannot select unknown board city '%s'." % city_id)
+		return
+	_selected_city_id = city_id
+	_update_selection_visuals()
+
+
+func set_target_cities(city_ids: Array[String]) -> void:
+	_target_city_ids = city_ids.duplicate()
 	_update_selection_visuals()
 
 
@@ -239,8 +269,7 @@ func _on_viewport_gui_input(event: InputEvent) -> void:
 	if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 		city_context_requested.emit(city_id, screen_position)
 		return
-	_selected_city_id = city_id
-	_update_selection_visuals()
+	select_city(city_id)
 	city_selected.emit(city_id)
 
 
@@ -411,6 +440,8 @@ func _update_selection_visuals() -> void:
 		var city_visual: Node3D = _city_visuals[city_id]
 		var selection := city_visual.get_node("Selection") as MeshInstance3D
 		selection.visible = city_id == _selected_city_id
+		var target := city_visual.get_node("ActionTarget") as MeshInstance3D
+		target.visible = _target_city_ids.has(city_id)
 
 
 func _configure_meshes() -> void:
@@ -435,6 +466,7 @@ func _configure_materials() -> void:
 	_road_material = _create_material(ROAD_COLOR)
 	_cog_material = _create_material(COG_COLOR)
 	_selection_material = _create_material(Color(1.0, 0.82, 0.2))
+	_attack_target_material = _create_material(Color(0.3, 0.95, 0.85))
 	for owner_id: String in OWNER_COLORS:
 		_owner_materials[owner_id] = _create_material(OWNER_COLORS[owner_id])
 
@@ -578,6 +610,14 @@ func _add_city_visual(city: GameViewSnapshot.CityView, position: Vector3) -> voi
 	selection.position.y = 0.015
 	selection.visible = city.id == _selected_city_id
 	city_visual.add_child(selection)
+
+	var target := MeshInstance3D.new()
+	target.name = "ActionTarget"
+	target.mesh = _selection_mesh
+	target.material_override = _attack_target_material
+	target.position.y = 0.025
+	target.visible = _target_city_ids.has(city.id)
+	city_visual.add_child(target)
 
 	var base := MeshInstance3D.new()
 	base.name = "Base"

@@ -239,6 +239,12 @@ func start_quick_game() -> GameStartResult:
 	return GameStartResult.new(true)
 
 
+func validate_initial_reserve(city_id: String) -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before placing reserves.")
+	return _active_game_state.validate_initial_reserve(city_id)
+
+
 func place_initial_reserve(city_id: String) -> GameActionResult:
 	if _active_game_state == null:
 		return GameActionResult.new("Start a new game before placing reserves.")
@@ -310,6 +316,16 @@ func resolve_attack_round(
 		defender_commitment,
 		_combat_service
 	)
+
+
+func validate_occupation(
+	attacking_city_id: String,
+	target_city_id: String,
+	unit_count: int
+) -> GameActionResult:
+	if _active_game_state == null:
+		return GameActionResult.new("Start a new game before occupying cities.")
+	return _active_game_state.validate_occupation(attacking_city_id, target_city_id, unit_count)
 
 
 func occupy_city(

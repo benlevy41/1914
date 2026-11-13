@@ -37,10 +37,12 @@ func _initialize() -> void:
 		"Reserve counts should use the centralized initial reserve setting."
 	)
 
+	var wrong_owner_validation := state.validate_initial_reserve("allies_city")
 	var wrong_owner_result: GameActionResult = state.place_initial_reserve("allies_city")
 	_expect(
-		not wrong_owner_result.succeeded(),
-		"A player must not place on an opponent-owned city."
+		not wrong_owner_validation.succeeded()
+		and wrong_owner_validation.error_message == wrong_owner_result.error_message,
+		"Validation and placement must both reject an opponent-owned city."
 	)
 	_expect(
 		state.find_city("allies_city").unit_count == 1,
@@ -62,6 +64,13 @@ func _initialize() -> void:
 		"An unknown city must not consume a reserve."
 	)
 
+	_expect(
+		state.validate_initial_reserve("german_city_b").succeeded()
+		and state.find_city("german_city_b").unit_count == 1
+		and state.reserves_remaining_by_player_id[german_empire.id] == initial_reserves_per_player
+		and state.active_player_id == german_empire.id,
+		"Validating a legal placement must not change the game state."
+	)
 	var first_german_placement: GameActionResult = state.place_initial_reserve("german_city_b")
 	_expect(first_german_placement.succeeded(), "An owned city should accept a reserve.")
 	_expect(
@@ -96,8 +105,10 @@ func _initialize() -> void:
 	)
 	var placement_after_completion := state.place_initial_reserve("german_city_a")
 	_expect(
-		not placement_after_completion.succeeded(),
-		"No reserve may be placed after setup completes."
+		not placement_after_completion.succeeded()
+		and state.validate_initial_reserve("german_city_a").error_message
+		== placement_after_completion.error_message,
+		"Validation and placement must reject reserves after setup completes."
 	)
 	_expect(
 		state.find_city("german_city_a").unit_count == 1 + initial_reserves_per_player - 1,

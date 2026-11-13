@@ -8,6 +8,7 @@ var _failures: int = 0
 func run(root: Window) -> int:
 	var original_size := root.size
 	root.size = Vector2i(1152, 648)
+	await _check_initial_reserves(root)
 	var screen := MainScene.instantiate() as Control
 	root.add_child(screen)
 	await root.get_tree().process_frame
@@ -83,6 +84,90 @@ func run(root: Window) -> int:
 	screen.free()
 	root.size = original_size
 	return _failures
+
+
+func _check_initial_reserves(root: Window) -> void:
+	var screen := MainScene.instantiate() as Control
+	root.add_child(screen)
+	await root.get_tree().process_frame
+	(screen.get_node("MarginContainer/Content/MenuPanel/CustomGame") as Button).emit_signal("pressed")
+	var input := screen.get_node("MarginContainer/Content/SetupPanel/LeaderName") as LineEdit
+	var next := screen.get_node("MarginContainer/Content/SetupPanel/Continue") as Button
+	input.text = "Allied leader"
+	next.emit_signal("pressed")
+	input.text = "German leader"
+	next.emit_signal("pressed")
+	await root.get_tree().process_frame
+	var board := screen.get_node("MarginContainer/Content/MainLayout/Board") as BoardView
+	var menu := screen.get_node("CityContextMenu") as PopupMenu
+	var app := screen.get("_game_application") as GameApplication
+	var status := screen.get("_turn_status") as Label
+	_click(root, _city_screen_position(board, "paris"), MOUSE_BUTTON_RIGHT)
+	await root.get_tree().process_frame
+	var item_index := menu.get_item_index(8)
+	_expect(
+		menu.visible and item_index >= 0 and menu.is_item_disabled(item_index)
+		and status.text.contains("owned by the player"),
+		"An opponent city should show a disabled initial reserve action and reason."
+	)
+	menu.hide()
+	await root.get_tree().process_frame
+	_click(root, _city_screen_position(board, "koblenz"), MOUSE_BUTTON_RIGHT)
+	await root.get_tree().process_frame
+	_expect(
+		menu.visible and menu.get_item_index(8) >= 0
+		and not menu.is_item_disabled(menu.get_item_index(8)),
+		"A right-click on the active player's city should offer initial reserve placement."
+	)
+	_click(root, Vector2(menu.position) + Vector2(menu.size) / 2.0, MOUSE_BUTTON_LEFT)
+	await root.get_tree().process_frame
+	var snapshot := app.get_view_snapshot()
+	_expect(
+		snapshot.find_city("koblenz").unit_count == 2 and snapshot.active_player_id == "allies"
+		and status.text.contains("Allied leader")
+		and snapshot.find_player("german_empire").reserves_remaining == 4,
+		"Context placement should update the city, reserve count, and active player."
+	)
+	_click(root, _city_screen_position(board, "paris"), MOUSE_BUTTON_RIGHT)
+	await root.get_tree().process_frame
+	_expect(app.place_initial_reserve("paris").succeeded(), "Advance while the menu is open.")
+	menu.emit_signal("id_pressed", 8)
+	menu.hide()
+	_expect(
+		app.get_view_snapshot().find_city("paris").unit_count == 2
+		and status.text.contains("owned by the player"),
+		"A stale initial-placement action should be rejected without a second placement."
+	)
+	screen.call("_refresh_game_view")
+	screen.call("_update_phase_status")
+	for index: int in 8:
+		await root.get_tree().process_frame
+		var city_id := "koblenz" if index % 2 == 0 else "paris"
+		_click(root, _city_screen_position(board, city_id), MOUSE_BUTTON_RIGHT)
+		await root.get_tree().process_frame
+		item_index = menu.get_item_index(8)
+		if not menu.visible or item_index < 0 or menu.is_item_disabled(item_index):
+			_expect(false, "Each active player should be able to place an initial reserve.")
+			break
+		_click(root, Vector2(menu.position) + Vector2(menu.size) / 2.0, MOUSE_BUTTON_LEFT)
+		await root.get_tree().process_frame
+	snapshot = app.get_view_snapshot()
+	var phase := screen.get_node("MarginContainer/Content/GameHUD/Content/Center/Info/Phase") as Label
+	_expect(
+		snapshot.phase == GameViewSnapshot.Phase.REINFORCEMENT_PLACEMENT
+		and snapshot.active_player_id == "german_empire"
+		and snapshot.find_city("koblenz").unit_count == 6
+		and snapshot.find_city("paris").unit_count == 6
+		and phase.text == "Reinforcement - 3 remaining",
+		"The last contextual reserve should start Germany's reinforcement phase and refresh the HUD."
+	)
+	menu.emit_signal("id_pressed", 8)
+	_expect(
+		app.get_view_snapshot().find_city("paris").unit_count == 6
+		and status.text.contains("Initial reserve placement is not in progress"),
+		"A stale setup action must not become a regular reinforcement."
+	)
+	screen.free()
 
 
 func _city_visual(board: BoardView) -> Node3D:

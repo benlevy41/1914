@@ -156,7 +156,7 @@ func _development_city_error(city_id: String) -> String:
 	return "The city owner is not in this game."
 
 
-func place_initial_reserve(city_id: String) -> GameActionResult:
+func validate_initial_reserve(city_id: String) -> GameActionResult:
 	var game_over_error := _game_over_error()
 	if not game_over_error.is_empty():
 		return GameActionResult.new(game_over_error)
@@ -172,7 +172,15 @@ func place_initial_reserve(city_id: String) -> GameActionResult:
 		return GameActionResult.new("That city is not on the map.")
 	if city.owner_id != active_player_id:
 		return GameActionResult.new("Choose a city owned by the player placing a reserve.")
+	return GameActionResult.new()
 
+
+func place_initial_reserve(city_id: String) -> GameActionResult:
+	var validation_result := validate_initial_reserve(city_id)
+	if not validation_result.succeeded():
+		return validation_result
+	var city := find_city(city_id)
+	var reserves_remaining: int = reserves_remaining_by_player_id[active_player_id]
 	city.add_units(1)
 	reserves_remaining_by_player_id[active_player_id] = reserves_remaining - 1
 	_advance_initial_reserve_placement()
@@ -263,8 +271,10 @@ func validate_attack_source(attacking_city_id: String) -> GameActionResult:
 		return GameActionResult.new("The attacking city is not on the map.")
 	if attacking_city.owner_id != active_player_id:
 		return GameActionResult.new("Choose a city owned by the active player to attack from.")
-	if attacking_city.unit_count <= 0:
-		return GameActionResult.new("Choose an active player's city with at least one unit.")
+	if attacking_city.unit_count < 2:
+		return GameActionResult.new(
+			"Choose an active player's city with at least two units; leave a unit in the source."
+		)
 	return GameActionResult.new()
 
 
@@ -296,8 +306,8 @@ func validate_attack(
 		return GameActionResult.new("The defending city is not on the map.")
 	if attacking_city_id == defending_city_id:
 		return GameActionResult.new("A city cannot attack itself.")
-	if attacker_commitment < 1 or attacker_commitment > attacking_city.unit_count:
-		return GameActionResult.new("Choose at least one unit, up to the attacking garrison.")
+	if attacker_commitment < 1 or attacker_commitment >= attacking_city.unit_count:
+		return GameActionResult.new("Commit at least one unit and leave one in the source city.")
 	if not _are_cities_connected(attacking_city_id, defending_city_id):
 		return GameActionResult.new("Attacks must target a city directly connected by a road.")
 	if defending_city.owner_id == active_player_id:
@@ -349,15 +359,16 @@ func resolve_attack_round(
 		attacking_city.remove_units(result.attacker_losses)
 	if result.defender_losses > 0:
 		defending_city.remove_units(result.defender_losses)
-	if attacking_city.unit_count == 0:
-		attacking_city.leave_unoccupied()
 	if defending_city.unit_count == 0:
-		defending_city.leave_unoccupied()
+		result.units_advanced = attacker_commitment - result.attacker_losses
+		attacking_city.remove_units(result.units_advanced)
+		defending_city.add_units(result.units_advanced)
+		defending_city.assign_owner(active_player_id)
 	_check_for_winner()
 	return result
 
 
-func occupy_city(
+func validate_occupation(
 	attacking_city_id: String,
 	target_city_id: String,
 	unit_count: int
@@ -383,7 +394,19 @@ func occupy_city(
 		return GameActionResult.new("A city can only be occupied along a direct road.")
 	if unit_count < 1 or unit_count >= attacking_city.unit_count:
 		return GameActionResult.new("Move at least one unit and leave at least one in the source city.")
+	return GameActionResult.new()
 
+
+func occupy_city(
+	attacking_city_id: String,
+	target_city_id: String,
+	unit_count: int
+) -> GameActionResult:
+	var validation_result := validate_occupation(attacking_city_id, target_city_id, unit_count)
+	if not validation_result.succeeded():
+		return validation_result
+	var attacking_city := find_city(attacking_city_id)
+	var target_city := find_city(target_city_id)
 	attacking_city.remove_units(unit_count)
 	target_city.add_units(unit_count)
 	target_city.assign_owner(active_player_id)

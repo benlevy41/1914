@@ -13,8 +13,8 @@ var _failures: int = 0
 
 func _initialize() -> void:
 	_test_attack_validation()
-	_test_resolving_and_occupying()
-	_test_attacker_elimination()
+	_test_capture()
+	_test_attacker_losses_leave_reserve()
 	_test_unoccupied_city_occupation()
 
 	if _failures == 0:
@@ -55,6 +55,12 @@ func _test_attack_validation() -> void:
 		not state.validate_attack_source("allies_home").succeeded(),
 		"A city without units must not be selectable as an attack origin."
 	)
+	state.find_city("allies_home").unit_count = 1
+	_expect(
+		not state.validate_attack_source("allies_home").succeeded()
+		and not state.validate_attack("allies_home", "german_target", 1).succeeded(),
+		"A one-unit garrison cannot attack."
+	)
 	state.find_city("allies_home").unit_count = 3
 	_expect(
 		not state.validate_attack("allies_home", "german_home", 1).succeeded(),
@@ -73,8 +79,10 @@ func _test_attack_validation() -> void:
 		"An attack must commit at least one attacker."
 	)
 	_expect(
-		not state.validate_attack("allies_home", "german_target", 4).succeeded(),
-		"An attack cannot commit more units than its source garrison."
+		not state.validate_attack("allies_home", "german_target", 3).succeeded()
+		and not state.resolve_attack_round("allies_home", "german_target", 3, 1, _service()).succeeded()
+		and state.validate_attack("allies_home", "german_target", 2).succeeded(),
+		"An attack must leave one unit in its source city."
 	)
 	_expect(
 		not state.resolve_attack_round("allies_home", "german_target", 1, 0, _service()).succeeded(),
@@ -94,9 +102,10 @@ func _test_attack_validation() -> void:
 	)
 
 
-func _test_resolving_and_occupying() -> void:
+func _test_capture() -> void:
 	var state := _create_state()
 	_begin_attack(state)
+	state.find_city("allies_home").unit_count = 5
 	var result: CombatRoundResult = state.resolve_attack_round(
 		"allies_home",
 		"german_target",
@@ -106,46 +115,19 @@ func _test_resolving_and_occupying() -> void:
 	)
 	_expect(result.succeeded(), "A legal combat round should resolve.")
 	_expect(
-		state.find_city("allies_home").unit_count == 3 - result.attacker_losses,
-		"Attacker casualties should be applied to the source garrison."
-	)
-	_expect(
-		state.find_city("german_target").unit_count == 1 - result.defender_losses,
-		"Defender casualties should be applied to the target garrison."
-	)
-	_expect(
-		state.find_city("german_target").owner_id.is_empty(),
-		"A defeated city should become unoccupied until the attacker moves in."
-	)
-	_expect(
-		state.find_city("german_target").last_owner_id == "german_empire",
-		"Combat losses should preserve the last owner of an unoccupied city."
-	)
-	var source_units: int = state.find_city("allies_home").unit_count
-	var occupation_result: GameActionResult = state.occupy_city(
-		"allies_home",
-		"german_target",
-		1
-	)
-	_expect(occupation_result.succeeded(), "The attacker should occupy a defeated city.")
-	_expect(
-		state.find_city("german_target").owner_id == "allies",
-		"Moving units into the target should change its ownership."
-	)
-	_expect(
-		state.find_city("german_target").last_owner_id == "allies",
-		"Occupying a city should update its remembered owner."
-	)
-	_expect(
-		state.find_city("allies_home").unit_count == source_units - 1,
-		"Occupation should move units from the source garrison."
+		result.defender_losses == 1 and result.units_advanced == 2 - result.attacker_losses
+		and state.find_city("allies_home").unit_count == 3
+		and state.find_city("german_target").unit_count == result.units_advanced
+		and state.find_city("german_target").owner_id == "allies"
+		and state.find_city("german_target").last_owner_id == "allies",
+		"A decisive round should transfer committed survivors and leave uncommitted units behind."
 	)
 
 
-func _test_attacker_elimination() -> void:
+func _test_attacker_losses_leave_reserve() -> void:
 	var state := _create_state()
 	_begin_attack(state)
-	state.find_city("allies_home").unit_count = 1
+	state.find_city("allies_home").unit_count = 2
 	var result: CombatRoundResult = state.resolve_attack_round(
 		"allies_home",
 		"german_target",
@@ -153,19 +135,15 @@ func _test_attacker_elimination() -> void:
 		1,
 		_service(3)
 	)
-	_expect(result.succeeded(), "A valid one-unit attack should resolve.")
+	_expect(result.succeeded(), "A two-unit source may attack with one unit.")
 	_expect(result.attacker_losses == 1, "The seeded dice comparison should favor the defender.")
 	_expect(
-		state.find_city("allies_home").unit_count == 0,
-		"An eliminated attacking garrison should have no units remaining."
-	)
-	_expect(
-		state.find_city("allies_home").owner_id.is_empty(),
-		"An eliminated attacking garrison should become unoccupied."
-	)
-	_expect(
-		state.find_city("allies_home").last_owner_id == "allies",
-		"An eliminated garrison should preserve its previous owner."
+		state.find_city("allies_home").unit_count == 1
+		and state.find_city("allies_home").owner_id == "allies"
+		and state.find_city("german_target").unit_count == 1
+		and state.find_city("german_target").owner_id == "german_empire"
+		and result.units_advanced == 0,
+		"Losing the committed attacker must leave the reserve and defender in place."
 	)
 
 
@@ -175,6 +153,24 @@ func _test_unoccupied_city_occupation() -> void:
 	state.find_city("german_target").owner_id = ""
 	state.find_city("german_target").unit_count = 0
 
+	_expect(
+		state.validate_occupation("allies_home", "german_target", 2).succeeded()
+		and state.find_city("allies_home").unit_count == 3
+		and state.find_city("german_target").unit_count == 0,
+		"Validating occupation must not move units or occupy the city."
+	)
+	for count: int in [0, 3]:
+		_expect(
+			not state.validate_occupation("allies_home", "german_target", count).succeeded()
+			and not state.occupy_city("allies_home", "german_target", count).succeeded(),
+			"Occupation validation and execution must reject the same invalid commitments."
+		)
+	_expect(
+		not state.validate_occupation("allies_home", "german_home", 1).succeeded()
+		and not state.validate_occupation("german_home", "german_target", 1).succeeded()
+		and not state.validate_occupation("allies_home", "unknown", 1).succeeded(),
+		"Occupation validation should reject occupied, enemy-source, and unknown cities."
+	)
 	var invalid_occupation := state.occupy_city("allies_home", "german_target", 3)
 	_expect(
 		not invalid_occupation.succeeded(),

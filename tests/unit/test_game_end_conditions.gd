@@ -14,6 +14,8 @@ var _failures: int = 0
 func _initialize() -> void:
 	_test_eliminating_forces_after_capturing_the_enemy_center_wins()
 	_test_capturing_the_enemy_center_after_elimination_wins()
+	_test_final_capture_checks_victory()
+	_test_one_unit_without_a_center_cannot_complete_victory()
 
 	if _failures == 0:
 		print("Game end condition unit tests passed.")
@@ -61,6 +63,51 @@ func _test_capturing_the_enemy_center_after_elimination_wins() -> void:
 	_expect(
 		state.winner_id == "allies",
 		"Capturing the enemy center after eliminating all enemy forces should win."
+	)
+
+
+func _test_final_capture_checks_victory() -> void:
+	var state := _create_state("german_empire", "", 0)
+	_begin_attack(state)
+	var result := state.resolve_attack_round(
+		"allies_home", "german_cog", 2, 1, _combat_service_where_attacker_wins()
+	)
+	_expect(
+		result.succeeded() and result.units_advanced == 2
+		and state.find_city("allies_home").unit_count == 1
+		and state.find_city("german_cog").owner_id == "allies"
+		and state.winner_id == "allies",
+		"Capturing the last enemy unit in its center should immediately determine victory."
+	)
+
+
+func _test_one_unit_without_a_center_cannot_complete_victory() -> void:
+	var state := _create_state("", "", 0)
+	var home := state.find_city("allies_home")
+	home.leave_unoccupied()
+	home.unit_count = 0
+	var last_city := state.find_city("german_last")
+	last_city.assign_owner("allies")
+	last_city.unit_count = 1
+	_begin_attack(state)
+	_expect(
+		state.reinforcements_remaining == 0
+		and not state.occupy_city("german_last", "allies_home", 1).succeeded()
+		and state.winner_id.is_empty(),
+		"A lone unit without its center cannot reinforce or occupy to complete victory."
+	)
+	_expect(state.end_attack_phase().succeeded(), "The stalled player can still end attacks.")
+	_expect(
+		state.end_reorganization_phase("german_empire").succeeded()
+		and state.reinforcements_remaining == 0,
+		"The eliminated opponent can also begin a turn with no reinforcements."
+	)
+	_expect(state.begin_attack_phase().succeeded(), "The opponent can skip reinforcements.")
+	_expect(state.end_attack_phase().succeeded(), "The opponent can end attacks.")
+	_expect(
+		state.end_reorganization_phase("allies").succeeded()
+		and state.reinforcements_remaining == 0 and state.winner_id.is_empty(),
+		"Another turn does not resolve the stalled position."
 	)
 
 

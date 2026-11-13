@@ -5,6 +5,7 @@ var attacker_rolls: Array[int]
 var defender_rolls: Array[int]
 var attacker_losses: int
 var defender_losses: int
+var units_advanced: int = 0
 var error_message: String
 
 

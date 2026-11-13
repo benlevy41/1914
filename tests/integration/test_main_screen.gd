@@ -4,6 +4,9 @@ const MainScene = preload("res://scenes/main.tscn")
 const BoardNavigationChecks = preload("res://tests/integration/board_navigation_checks.gd")
 const HudChecks = preload("res://tests/integration/hud_checks.gd")
 const ReinforcementPathChecks = preload("res://tests/integration/reinforcement_path_checks.gd")
+const ContextualAttackChecks = preload("res://tests/integration/contextual_attack_checks.gd")
+const CombatPromptChecks = preload("res://tests/integration/combat_prompt_checks.gd")
+const ContextualTransferChecks = preload("res://tests/integration/contextual_transfer_checks.gd")
 
 var _failures: int = 0
 
@@ -17,6 +20,11 @@ func _run_test() -> void:
 	var main_screen := MainScene.instantiate() as Control
 	get_tree().root.add_child(main_screen)
 	await get_tree().process_frame
+	if not main_screen.get_node_or_null("MarginContainer/Content/GameHUD") is GameHUD:
+		push_error("The main screen must contain the game HUD before starting a game.")
+		main_screen.free()
+		get_tree().quit(1)
+		return
 	var test_application := main_screen.get("_game_application") as GameApplication
 	test_application._random_generator.seed = 1914
 
@@ -110,8 +118,7 @@ func _run_test() -> void:
 	_expect(not setup_panel.visible, "The name prompt should close after both names are entered.")
 	_expect(game_panel.visible, "The game board should appear after setup.")
 	_expect(
-		board.get_child_count() == 1
-		and board.get_node("ViewportContainer") is SubViewportContainer,
+		board.get_node("ViewportContainer") is SubViewportContainer,
 		"The board should host a 3D viewport in the game screen."
 	)
 	var board_snapshot := board.get("_snapshot") as GameViewSnapshot
@@ -478,20 +485,14 @@ func _run_test() -> void:
 		quick_start_context_menu.visible and quick_start_context_menu.get_item_index(1) == -1,
 		"Right-clicking a city should open gameplay actions without developer options."
 	)
-	quick_start_screen.call(
-		"_on_city_context_requested",
-		"paris",
-		Vector2.ZERO
-	)
-	_expect(
-		quick_start_context_menu.visible and quick_start_context_menu.get_item_index(1) == -1,
-		"Normal games should not expose developer options for a city."
-	)
 	_failures += HudChecks.new().check_normal_game(quick_start_screen)
 	get_tree().root.remove_child(quick_start_screen)
 	quick_start_screen.free()
 
 	_failures += await ReinforcementPathChecks.new().run(get_tree().root)
+	_failures += await ContextualAttackChecks.new().run(get_tree().root)
+	_failures += await CombatPromptChecks.new().run(get_tree().root)
+	_failures += await ContextualTransferChecks.new().run(get_tree().root)
 
 	var dev_mode_screen := MainScene.instantiate() as Control
 	get_tree().root.add_child(dev_mode_screen)

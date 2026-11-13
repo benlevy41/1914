@@ -6,6 +6,11 @@ var _failures: int = 0
 func check_banner(screen: Control) -> int:
 	var snapshot := screen.get("_game_snapshot") as GameViewSnapshot
 	var hud := screen.get_node("MarginContainer/Content/GameHUD") as GameHUD
+	var board := screen.get_node("MarginContainer/Content/MainLayout/Board") as BoardView
+	_expect(
+		hud.is_visible_in_tree() and board.is_visible_in_tree(),
+		"Starting a game should show both the HUD and the board."
+	)
 	var allies_name := hud.get_node("Content/Allies/Name") as Label
 	var german_name := hud.get_node("Content/Germany/Name") as Label
 	var allies_stats := hud.get_node("Content/Allies/Stats") as Label
